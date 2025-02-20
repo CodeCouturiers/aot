@@ -8,13 +8,11 @@
 
 class CVisualSynanApp : public CWinApp
 {
+	DECLARE_DYNCREATE(CVisualSynanApp)
 public:
-	
+	CVisualSynanApp() {} // Add default constructor
 
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
-
-	
-
 
 // Overrides
 	// ClassWizard generated virtual function overrides
@@ -26,11 +24,16 @@ public:
 
 	void SetLanguage(MorphLanguageEnum l);
 	CSyntaxHolder& GetHolder();
+	CDocTemplate* GetSynTemplate() { return m_pSynTemplate; }
+
+protected:
+	CDocTemplate* m_pSynTemplate;
 
 // Implementation
 	//{{AFX_MSG(CVisualSynanApp)
 	afx_msg void OnAppAbout();
 	afx_msg void OnSynFileNew();
+	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };
 

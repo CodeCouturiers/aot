@@ -19,7 +19,30 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 /////////////////////////////////////////////////////////////////////////////
+// The one and only CVisualSynanApp object
+
+CVisualSynanApp theApp;
+
+// For MFC Windows applications
+int APIENTRY wWinMain(HINSTANCE hInstance,
+                     HINSTANCE hPrevInstance,
+                     LPTSTR    lpCmdLine,
+                     int       nCmdShow)
+{
+    // Initialize MFC and print and error on failure
+    if (!AfxWinInit(hInstance, hPrevInstance, lpCmdLine, nCmdShow))
+    {
+        // initialize MFC and print and error on failure
+        AfxMessageBox(_T("Fatal Error: MFC initialization failed"));
+        return 1;
+    }
+    return theApp.Run();
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // CVisualSynanApp
+
+IMPLEMENT_DYNCREATE(CVisualSynanApp, CWinApp)
 
 BEGIN_MESSAGE_MAP(CVisualSynanApp, CWinApp)
 	//{{AFX_MSG_MAP(CVisualSynanApp)
@@ -30,15 +53,8 @@ BEGIN_MESSAGE_MAP(CVisualSynanApp, CWinApp)
 	// Standard file based document commands
 END_MESSAGE_MAP()
 
-
-/////////////////////////////////////////////////////////////////////////////
-// The one and only CVisualSynanApp object
-
-CVisualSynanApp theApp;
-
 /////////////////////////////////////////////////////////////////////////////
 // CVisualSynanApp initialization
-
 
 void CVisualSynanApp::OnSynFileNew()
 {
@@ -46,7 +62,6 @@ void CVisualSynanApp::OnSynFileNew()
 	CDocument* pDoc = T->CreateNewDocument();
 	T->InitialUpdateFrame(T->CreateNewFrame(pDoc, NULL), pDoc, TRUE);
 }
-
 
 class CVisualSynanCommandLineInfo  : public CCommandLineInfo
 {
@@ -83,7 +98,6 @@ CSyntaxHolder& CVisualSynanApp::GetHolder() {
 		return Rus;
 }
 
-
 BOOL CVisualSynanApp::InitInstance()
 {
 	// CG: The following block was added by the Splash Screen component.
@@ -96,13 +110,9 @@ BOOL CVisualSynanApp::InitInstance()
 	GlobalLoadMorphHolder(morphGerman);
 	GlobalLoadMorphHolder(morphRussian);
 
-	CWaitThread::m_hEventKill
-		= CreateEvent(NULL, FALSE, FALSE, NULL); // auto reset, initially reset
-
-
+	CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL); // auto reset, initially reset
 
 	CoInitialize(NULL);
-
 
 	AfxEnableControlContainer();
 
@@ -111,10 +121,7 @@ BOOL CVisualSynanApp::InitInstance()
 	//  of your final executable, you should remove from the following
 	//  the specific initialization routines you do not need.
 
-
 	// Change the registry key under which our settings are stored.
-	// TODO: You should modify this std::string to be something appropriate
-	// such as the name of your company or organization.
 	SetRegistryKey(_T("Local AppWizard-Generated Applications"));
 
 	LoadStdProfileSettings();  // Load standard INI file options (including MRU)
@@ -137,7 +144,6 @@ BOOL CVisualSynanApp::InitInstance()
 		RUNTIME_CLASS(CRichEditView));
 	AddDocTemplate(pDocTemplate);
 
-
 	// create main MDI Frame window
 	CMainFrame* pMainFrame = new CMainFrame;
 	if (!pMainFrame->LoadFrame(IDR_MAINFRAME))
@@ -156,9 +162,8 @@ BOOL CVisualSynanApp::InitInstance()
 		return FALSE;
 	}
 
-	if( !cmdInfo.m_strFileName.IsEmpty() )
+	if (!cmdInfo.m_strFileName.IsEmpty())
 		pMainFrame->m_bNewDoc = FALSE;
-	
 
 	pMainFrame->m_bNewDoc = TRUE;
 	// The main window has been initialized, so show and update it.
@@ -168,7 +173,6 @@ BOOL CVisualSynanApp::InitInstance()
 
 	return TRUE;
 }
-
 
 /////////////////////////////////////////////////////////////////////////////
 // CAboutDlg dialog used for App About
@@ -225,7 +229,6 @@ void CVisualSynanApp::OnAppAbout()
 
 /////////////////////////////////////////////////////////////////////////////
 // CVisualSynanApp message handlers
-
 
 int CVisualSynanApp::ExitInstance() 
 {
