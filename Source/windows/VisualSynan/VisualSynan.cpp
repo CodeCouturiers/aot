@@ -186,7 +186,18 @@ BOOL CVisualSynanApp::InitInstance()
     OutputDebugString(langInfo);
 
     try {
-        // Initialize syntax using SentencesCollection
+        // Initialize morphology holders first
+        OutputDebugString(_T("[VisualSynan] Loading morphological dictionaries...\n"));
+        
+        // Initialize Russian morphology
+        OutputDebugString(_T("[VisualSynan] Loading Russian morphological dictionary...\n"));
+        GlobalLoadMorphHolder(morphRussian);
+
+        // Initialize German morphology
+        OutputDebugString(_T("[VisualSynan] Loading German morphological dictionary...\n"));
+        GlobalLoadMorphHolder(morphGerman);
+
+        // Now initialize syntax
         OutputDebugString(_T("[VisualSynan] Creating syntax options...\n"));
         if (!Rus.m_Synan.CreateOptions(morphRussian)) {
             OutputDebugString(_T("[VisualSynan] Failed to create Russian syntax options!\n"));
@@ -200,13 +211,14 @@ BOOL CVisualSynanApp::InitInstance()
             return FALSE;
         }
 
-        // Initialize both holders
+        // Initialize syntax processors
         OutputDebugString(_T("[VisualSynan] Initializing Russian syntax...\n"));
         Rus.m_Synan.InitializeProcesser();
 
         OutputDebugString(_T("[VisualSynan] Initializing German syntax...\n"));
         Ger.m_Synan.InitializeProcesser();
 
+        // Load syntax rules for the selected language
         OutputDebugString(_T("[VisualSynan] Loading syntax rules...\n"));
         GetHolder().LoadSyntax();
         OutputDebugString(_T("[VisualSynan] Morphology initialized successfully\n"));
