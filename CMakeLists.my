@@ -45,4 +45,4 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Настройки компонентов
 set(BUILD_COM 0)
 set(BUILD_WINDOWS_GUI 1)  # Включаем сборку GUI
-set(BUILD_DICTS 1)
+set(BUILD_DICTS 0)
