@@ -5,3 +5,4 @@
 *.automat
 *.grammar_precompiled
 *.morph
+/external
