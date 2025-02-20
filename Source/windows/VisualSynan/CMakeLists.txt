@@ -11,12 +11,11 @@ declare_cmake_min_version()
 
 project(VisualSynan)
 
+if(NOT BUILD_WINDOWS_GUI)
+    return()
+endif()
+
 if(WIN32)
-    # Force Win32 for Visual Studio
-    set(CMAKE_GENERATOR_PLATFORM "Win32" CACHE INTERNAL "" FORCE)
-    set(CMAKE_VS_PLATFORM_NAME "Win32" CACHE INTERNAL "" FORCE)
-    set(CMAKE_VS_PLATFORM_TOOLSET "v142" CACHE INTERNAL "" FORCE)
-    
     # MFC settings
     set(CMAKE_MFC_FLAG 2)
     add_definitions(-D_AFXDLL)
@@ -30,45 +29,48 @@ if(WIN32)
     )
 endif()
 
-add_link_options(/ENTRY:wWinMainCRTStartup /SUBSYSTEM:WINDOWS) 
-
-add_executable (${PROJECT_NAME} WIN32
-        ChildFrm.cpp
-        DlgHom.cpp
-        MainFrm.cpp
-        ReportDoc.cpp
-        SentenceLine.cpp
-        Splash.cpp
-        StdAfx.cpp
-        SynReport.cpp
-        VisualClause.cpp
-        VisualGroup.cpp
-        VisualGroups.cpp
-        VisualSentence.cpp
-        VisualSentences.cpp
-        VisualSynan.cpp
-        VisualSynan.rc
-        VisualSynanDoc.cpp
-        VisualSynanView.cpp
-        VisualWord.cpp
-        WaitDlg.cpp
-        WaitThread.cpp
-        ChildFrm.h
-        DlgHom.h
-        MainFrm.h
-        ReportDoc.h
-        SentenceLine.h
-        Splash.h
-        StdAfx.h
-        SynReport.h
-        SynanWrapper.h
-        VisualSentences.h
-        VisualSynan.h
-        VisualSynanDoc.h
-        VisualSynanView.h
-        WaitDlg.h
-        WaitThread.h
+set(SOURCES
+    ChildFrm.cpp
+    DlgHom.cpp
+    MainFrm.cpp
+    ReportDoc.cpp
+    SentenceLine.cpp
+    Splash.cpp
+    StdAfx.cpp
+    SynReport.cpp
+    VisualClause.cpp
+    VisualGroup.cpp
+    VisualGroups.cpp
+    VisualSentence.cpp
+    VisualSentences.cpp
+    VisualSynan.cpp
+    VisualSynan.rc
+    VisualSynanDoc.cpp
+    VisualSynanView.cpp
+    VisualWord.cpp
+    WaitDlg.cpp
+    WaitThread.cpp
 )
+
+set(HEADERS
+    ChildFrm.h
+    DlgHom.h
+    MainFrm.h
+    ReportDoc.h
+    SentenceLine.h
+    Splash.h
+    StdAfx.h
+    SynReport.h
+    SynanWrapper.h
+    VisualSentences.h
+    VisualSynan.h
+    VisualSynanDoc.h
+    VisualSynanView.h
+    WaitDlg.h
+    WaitThread.h
+)
+
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
 
 # Set compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8 /MP /EHsc")
@@ -89,20 +91,15 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     VS_GLOBAL_KEYWORD "Win32Proj"
     VS_PLATFORM_TOOLSET "v142"
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$(Configuration)"
-    VS_STARTUP_PROJECT ${PROJECT_NAME}
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
 
-# Set output directories
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
-    PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
-)
-
-# Ensure the project is visible in Visual Studio
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
+# Set source groups for better organization in Visual Studio
+source_group("Source Files" FILES ${SOURCES})
+source_group("Header Files" FILES ${HEADERS})
 
 if (BUILD_DICTS)
-    add_dependencies (${PROJECT_NAME} MorphDicts)
+    add_dependencies(${PROJECT_NAME} MorphDicts)
 endif()
