@@ -59,6 +59,68 @@ More detail about Morphology dicts is here: Docs/Morph_UNIX.txt
 
 7. nder Windows follow  https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-170
 
+=================   Установка под Windows =======================
+1. Требования к системе:
+   - Microsoft Visual Studio 2019 или выше
+   - CMake (версия 3.24 или выше)
+   - Cygwin (с пакетами wget и gzip)
+   - Flex и Bison
+
+2. Подготовка среды:
+   2.1. Установите Visual Studio 2019 или выше
+   2.2. Установите CMake с официального сайта
+   2.3. Установка Cygwin:
+        - Автоматическая установка (рекомендуется):
+          - Скачайте скрипты get_cygwin_mirror.bat и install_cygwin.bat
+          - Сначала запустите get_cygwin_mirror.bat для поиска оптимального зеркала
+          - Затем запустите install_cygwin.bat от имени администратора
+          - Дождитесь сообщения "Installation complete"
+          - Перезапустите командную строку после установки
+          - Проверьте установку командами:
+            wget --version
+            gzip --version
+        
+        - Ручная установка:
+          - Скачайте установщик с www.cygwin.com
+          - При установке выберите пакеты wget и gzip
+          - Добавьте путь к bin директории Cygwin (C:\cygwin64\bin) в системную переменную PATH
+
+3. Установка Flex и Bison:
+   3.1. Автоматическая установка (рекомендуется):
+        - Скачайте скрипт install_winflexbison.bat
+        - Запустите скрипт от имени администратора
+        - Дождитесь сообщения "Installation complete"
+        - Перезапустите командную строку после установки
+        - Проверьте установку командами:
+          win_flex --version
+          win_bison --version
+
+   3.2. Ручная установка (если автоматическая установка не сработала):
+        mkdir RML/external
+        mkdir RML/external/winflex
+        cd RML/external/winflex
+        :: Скачайте архив win_flex_bison-2.5.24.zip с https://github.com/lexxmark/winflexbison/releases
+        :: Распакуйте .exe и .dll файлы в текущую директорию
+        :: Добавьте путь к директории в системную переменную PATH
+
+4. Настройка региональных параметров:
+   - Установите "Русский" во всех региональных настройках Windows
+   - Это необходимо для корректной работы Rossdev.exe и MorphWizard
+
+5. Сборка проекта:
+   5.1. Клонируйте репозиторий:
+        git clone git@github.com/aot.git --recursive RML
+   5.2. Запустите Visual Studio от имени администратора
+   5.3. Откройте проект:
+        - Выберите "Открыть папку" и укажите директорию RML
+        - Или используйте командную строку:
+          cmake .. -A Win32
+
+Примечания:
+- Для компиляции COM-объектов Visual Studio должна быть запущена с правами администратора
+- При возникновении проблем с кодировкой убедитесь, что в системе установлена поддержка русского языка
+- Подробную информацию о морфологических словарях можно найти в файле Docs/Morph_UNIX.txt
+
 =================   Compilation under Linux =======================
   export RML=/home/sokirko/RML
   export CXX=/usr/bin/g++
