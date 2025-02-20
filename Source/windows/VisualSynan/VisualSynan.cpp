@@ -29,13 +29,32 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
                      LPTSTR    lpCmdLine,
                      int       nCmdShow)
 {
+    OutputDebugString(_T("\n[VisualSynan] Starting wWinMain\n"));
+
     // Initialize MFC and print and error on failure
     if (!AfxWinInit(hInstance, hPrevInstance, lpCmdLine, nCmdShow))
     {
-        // initialize MFC and print and error on failure
-        AfxMessageBox(_T("Fatal Error: MFC initialization failed"));
+        OutputDebugString(_T("[VisualSynan] Fatal Error: MFC initialization failed\n"));
         return 1;
     }
+    OutputDebugString(_T("[VisualSynan] MFC initialized successfully\n"));
+
+    // Initialize application instance
+    if (!theApp.InitApplication())
+    {
+        OutputDebugString(_T("[VisualSynan] Fatal Error: Application initialization failed\n"));
+        return 1;
+    }
+    OutputDebugString(_T("[VisualSynan] Application initialized successfully\n"));
+
+    // Initialize instance
+    if (!theApp.InitInstance())
+    {
+        OutputDebugString(_T("[VisualSynan] Fatal Error: Instance initialization failed\n"));
+        return 1;
+    }
+    OutputDebugString(_T("[VisualSynan] Instance initialized successfully, starting message loop\n"));
+
     return theApp.Run();
 }
 
@@ -100,78 +119,114 @@ CSyntaxHolder& CVisualSynanApp::GetHolder() {
 
 BOOL CVisualSynanApp::InitInstance()
 {
-	// CG: The following block was added by the Splash Screen component.
-	{
-		CCommandLineInfo cmdInfo;
-		ParseCommandLine(cmdInfo);
-		CSplashWnd::EnableSplashScreen(cmdInfo.m_bShowSplash);
-	}
+    OutputDebugString(_T("\n[VisualSynan] Starting InitInstance\n"));
 
-	GlobalLoadMorphHolder(morphGerman);
-	GlobalLoadMorphHolder(morphRussian);
+    // CG: The following block was added by the Splash Screen component.
+    {
+        CCommandLineInfo cmdInfo;
+        ParseCommandLine(cmdInfo);
+        CSplashWnd::EnableSplashScreen(cmdInfo.m_bShowSplash);
+        OutputDebugString(_T("[VisualSynan] Splash screen initialized\n"));
+    }
 
-	CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL); // auto reset, initially reset
+    // Create main MDI Frame window first, before other initialization
+    OutputDebugString(_T("[VisualSynan] Creating main frame...\n"));
+    CMainFrame* pMainFrame = new CMainFrame;
+    if (!pMainFrame) {
+        OutputDebugString(_T("[VisualSynan] Failed to create main frame!\n"));
+        return FALSE;
+    }
 
-	CoInitialize(NULL);
+    if (!pMainFrame->LoadFrame(IDR_MAINFRAME)) {
+        OutputDebugString(_T("[VisualSynan] Failed to load main frame!\n"));
+        delete pMainFrame;
+        return FALSE;
+    }
+    
+    m_pMainWnd = pMainFrame;
+    if (!m_pMainWnd) {
+        OutputDebugString(_T("[VisualSynan] Critical Error: m_pMainWnd is NULL after assignment!\n"));
+        return FALSE;
+    }
+    OutputDebugString(_T("[VisualSynan] Main frame created and initialized\n"));
 
-	AfxEnableControlContainer();
+    OutputDebugString(_T("[VisualSynan] Loading morph holders...\n"));
+    GlobalLoadMorphHolder(morphGerman);
+    GlobalLoadMorphHolder(morphRussian);
+    OutputDebugString(_T("[VisualSynan] Morph holders loaded\n"));
 
-	// Standard initialization
-	// If you are not using these features and wish to reduce the size
-	//  of your final executable, you should remove from the following
-	//  the specific initialization routines you do not need.
+    CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL);
+    OutputDebugString(_T("[VisualSynan] Wait thread event created\n"));
 
-	// Change the registry key under which our settings are stored.
-	SetRegistryKey(_T("Local AppWizard-Generated Applications"));
+    CoInitialize(NULL);
+    OutputDebugString(_T("[VisualSynan] COM initialized\n"));
 
-	LoadStdProfileSettings();  // Load standard INI file options (including MRU)
+    AfxEnableControlContainer();
+    OutputDebugString(_T("[VisualSynan] Control container enabled\n"));
 
-	// Register the application's document templates.  Document templates
-	//  serve as the connection between documents, frame windows and views.
+    // Change the registry key under which our settings are stored.
+    SetRegistryKey(_T("Local AppWizard-Generated Applications"));
+    OutputDebugString(_T("[VisualSynan] Registry key set\n"));
 
-	CMultiDocTemplate* pDocTemplate;
-	pDocTemplate = new CMultiDocTemplate(
-		IDR_VISUALTYPE,
-		RUNTIME_CLASS(CVisualSynanDoc),
-		RUNTIME_CLASS(CChildFrame), // custom MDI child frame
-		RUNTIME_CLASS(CVisualSynanView));
-	AddDocTemplate(pDocTemplate);
+    LoadStdProfileSettings();
+    OutputDebugString(_T("[VisualSynan] Profile settings loaded\n"));
 
-	pDocTemplate = new CMultiDocTemplate(
-		IDR_REPORTTYPE,
-		RUNTIME_CLASS(CReportDoc),
-		RUNTIME_CLASS(CChildFrame), // custom MDI child frame
-		RUNTIME_CLASS(CRichEditView));
-	AddDocTemplate(pDocTemplate);
+    // Register document templates
+    OutputDebugString(_T("[VisualSynan] Creating document template...\n"));
+    m_pSynTemplate = new CMultiDocTemplate(
+        IDR_VISUALTYPE,
+        RUNTIME_CLASS(CVisualSynanDoc),
+        RUNTIME_CLASS(CChildFrame),
+        RUNTIME_CLASS(CVisualSynanView));
+    
+    if (!m_pSynTemplate) {
+        OutputDebugString(_T("[VisualSynan] Failed to create document template!\n"));
+        return FALSE;
+    }
+    
+    AddDocTemplate(m_pSynTemplate);
+    OutputDebugString(_T("[VisualSynan] Document template created and added\n"));
 
-	// create main MDI Frame window
-	CMainFrame* pMainFrame = new CMainFrame;
-	if (!pMainFrame->LoadFrame(IDR_MAINFRAME))
-		return FALSE;
-	m_pMainWnd = pMainFrame;
+    // Parse command line
+    OutputDebugString(_T("[VisualSynan] Parsing command line...\n"));
+    CVisualSynanCommandLineInfo cmdInfo;
+    ParseCommandLine(cmdInfo);
+    OutputDebugString(_T("[VisualSynan] Command line parsed\n"));
 
-	CVisualSynanCommandLineInfo cmdInfo;
-	ParseCommandLine(cmdInfo);
+    try {
+        OutputDebugString(_T("[VisualSynan] Loading syntax for language...\n"));
+        if (!pMainFrame->LoadSyntaxByLanguage(cmdInfo.m_Language)) {
+            OutputDebugString(_T("[VisualSynan] Failed to load syntax!\n"));
+            return FALSE;
+        }
+        OutputDebugString(_T("[VisualSynan] Syntax loaded successfully\n"));
+    }
+    catch (CExpc e) {
+        CString errorMsg;
+        errorMsg.Format(_T("[VisualSynan] Exception while loading syntax: %s\n"), CString(e.what()));
+        OutputDebugString(errorMsg);
+        return FALSE;
+    }
 
-	try {
-		if (!pMainFrame->LoadSyntaxByLanguage(cmdInfo.m_Language))
-			return FALSE;
-	}
-	catch (CExpc e) {
-		AfxMessageBox(CString(e.what()));
-		return FALSE;
-	}
+    // Show and update main window
+    OutputDebugString(_T("[VisualSynan] Showing main window...\n"));
+    pMainFrame->ShowWindow(SW_SHOW);
+    pMainFrame->UpdateWindow();
+    OutputDebugString(_T("[VisualSynan] Main window shown and updated\n"));
 
-	if (!cmdInfo.m_strFileName.IsEmpty())
-		pMainFrame->m_bNewDoc = FALSE;
+    // Create initial document
+    OutputDebugString(_T("[VisualSynan] Creating initial document...\n"));
+    OnSynFileNew();
+    OutputDebugString(_T("[VisualSynan] Initial document created\n"));
 
-	pMainFrame->m_bNewDoc = TRUE;
-	// The main window has been initialized, so show and update it.
-	pMainFrame->ShowWindow(SW_SHOWMAXIMIZED);//m_nCmdShow);
-	pMainFrame->UpdateWindow();
-	OnSynFileNew();
+    // Double check main window pointer before returning
+    if (!m_pMainWnd) {
+        OutputDebugString(_T("[VisualSynan] Critical Error: m_pMainWnd is NULL at end of InitInstance!\n"));
+        return FALSE;
+    }
 
-	return TRUE;
+    OutputDebugString(_T("[VisualSynan] InitInstance completed successfully\n"));
+    return TRUE;
 }
 
 /////////////////////////////////////////////////////////////////////////////
