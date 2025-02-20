@@ -6,3 +6,5 @@
 *.grammar_precompiled
 *.morph
 /external
+.vs
+/out
