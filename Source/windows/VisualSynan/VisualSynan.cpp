@@ -174,8 +174,56 @@ BOOL CVisualSynanApp::InitInstance()
     }
     OutputDebugString(_T("[VisualSynan] Main frame created and initialized\n"));
 
-    // Skip morphology loading
-    OutputDebugString(_T("[VisualSynan] Skipping morphology loading\n"));
+    // Initialize morphology
+    OutputDebugString(_T("[VisualSynan] Initializing morphology...\n"));
+    CVisualSynanCommandLineInfo cmdInfo;
+    ParseCommandLine(cmdInfo);
+    SetLanguage(cmdInfo.m_Language);
+    
+    CString langInfo;
+    langInfo.Format(_T("[VisualSynan] Selected language: %s\n"), 
+                    cmdInfo.m_Language == morphGerman ? _T("German") : _T("Russian"));
+    OutputDebugString(langInfo);
+
+    try {
+        // Initialize syntax using SentencesCollection
+        OutputDebugString(_T("[VisualSynan] Creating syntax options...\n"));
+        if (!Rus.m_Synan.CreateOptions(morphRussian)) {
+            OutputDebugString(_T("[VisualSynan] Failed to create Russian syntax options!\n"));
+            AfxMessageBox(_T("Failed to create Russian syntax options."), MB_ICONERROR);
+            return FALSE;
+        }
+
+        if (!Ger.m_Synan.CreateOptions(morphGerman)) {
+            OutputDebugString(_T("[VisualSynan] Failed to create German syntax options!\n"));
+            AfxMessageBox(_T("Failed to create German syntax options."), MB_ICONERROR);
+            return FALSE;
+        }
+
+        // Initialize both holders
+        OutputDebugString(_T("[VisualSynan] Initializing Russian syntax...\n"));
+        Rus.m_Synan.InitializeProcesser();
+
+        OutputDebugString(_T("[VisualSynan] Initializing German syntax...\n"));
+        Ger.m_Synan.InitializeProcesser();
+
+        OutputDebugString(_T("[VisualSynan] Loading syntax rules...\n"));
+        GetHolder().LoadSyntax();
+        OutputDebugString(_T("[VisualSynan] Morphology initialized successfully\n"));
+    }
+    catch (const std::exception& e) {
+        CStringA errorMsg(e.what());
+        CString debugMsg;
+        debugMsg.Format(_T("[VisualSynan] Exception while loading morphology: %S\n"), errorMsg);
+        OutputDebugString(debugMsg);
+        AfxMessageBox(_T("Error initializing morphology. Please check log for details."), MB_ICONERROR);
+        return FALSE;
+    }
+    catch (...) {
+        OutputDebugString(_T("[VisualSynan] Unknown exception while loading morphology!\n"));
+        AfxMessageBox(_T("Unexpected error while initializing morphology."), MB_ICONERROR);
+        return FALSE;
+    }
 
     CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL);
     OutputDebugString(_T("[VisualSynan] Wait thread event created\n"));
@@ -208,15 +256,6 @@ BOOL CVisualSynanApp::InitInstance()
     
     AddDocTemplate(m_pSynTemplate);
     OutputDebugString(_T("[VisualSynan] Document template created and added\n"));
-
-    // Parse command line
-    OutputDebugString(_T("[VisualSynan] Parsing command line...\n"));
-    CVisualSynanCommandLineInfo cmdInfo;
-    ParseCommandLine(cmdInfo);
-    OutputDebugString(_T("[VisualSynan] Command line parsed\n"));
-
-    // Skip syntax loading
-    OutputDebugString(_T("[VisualSynan] Skipping syntax loading\n"));
 
     // Show and update main window
     OutputDebugString(_T("[VisualSynan] Showing main window...\n"));
