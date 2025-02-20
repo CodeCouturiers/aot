@@ -19,13 +19,6 @@ if exist .vs rmdir /s /q .vs
 mkdir build
 cd build
 
-:: Configure CMake for Visual Studio 2019 with Win32
-cmake .. -G "Visual Studio 16 2019" -A Win32 ^
-    -DCMAKE_GENERATOR_PLATFORM=Win32 ^
-    -DCMAKE_BUILD_TYPE=Debug ^
-    -DBUILD_WINDOWS_GUI=ON ^
-    -DBUILD_DICTS=ON
-
 echo Done! Visual Studio solution has been regenerated.
 cd ..
 pause 
