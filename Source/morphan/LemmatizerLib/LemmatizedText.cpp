@@ -3,6 +3,9 @@
 #include "morph_dict/lemmatizer_base_lib/MorphanHolder.h"
 
 #include <fstream>
+#include <Windows.h>
+#include <debugapi.h>
+#include <tchar.h>
 
 
 CLemmatizedText::CLemmatizedText(MorphLanguageEnum l)
@@ -14,6 +17,10 @@ CLemmatizedText::CLemmatizedText(MorphLanguageEnum l)
 void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 {
 	auto lemmatizer = GetMHolder(m_Language).m_pLemmatizer;
+	if (!lemmatizer) {
+		OutputDebugString(_T("[VisualSynan] Error: Lemmatizer is null in CLemmatizedText::CreateFromTokemized\n"));
+		throw std::runtime_error("Lemmatizer is null");
+	}
 
 	
 	m_LemWords.clear();

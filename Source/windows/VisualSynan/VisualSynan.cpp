@@ -121,6 +121,30 @@ BOOL CVisualSynanApp::InitInstance()
 {
     OutputDebugString(_T("\n[VisualSynan] Starting InitInstance\n"));
 
+    // Get the executable path and set working directory
+    TCHAR exePath[MAX_PATH];
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString strExePath(exePath);
+    CString strExeDir = strExePath.Left(strExePath.ReverseFind('\\'));
+    
+    // Go up four directories from bin: bin -> x64-Debug -> build -> out -> RML
+    CString strBaseDir = strExeDir;
+    for (int i = 0; i < 4; i++) {
+        int pos = strBaseDir.ReverseFind('\\');
+        if (pos != -1) {
+            strBaseDir = strBaseDir.Left(pos);
+        }
+    }
+    
+    // Set the working directory to the base RML directory
+    SetCurrentDirectory(strBaseDir);
+    
+    // Log the directories for debugging
+    CString dirInfo;
+    dirInfo.Format(_T("[VisualSynan] Executable directory: %s\n[VisualSynan] Base directory: %s\n"), 
+                   strExeDir, strBaseDir);
+    OutputDebugString(dirInfo);
+
     // CG: The following block was added by the Splash Screen component.
     {
         CCommandLineInfo cmdInfo;
@@ -150,10 +174,8 @@ BOOL CVisualSynanApp::InitInstance()
     }
     OutputDebugString(_T("[VisualSynan] Main frame created and initialized\n"));
 
-    OutputDebugString(_T("[VisualSynan] Loading morph holders...\n"));
-    GlobalLoadMorphHolder(morphGerman);
-    GlobalLoadMorphHolder(morphRussian);
-    OutputDebugString(_T("[VisualSynan] Morph holders loaded\n"));
+    // Skip morphology loading
+    OutputDebugString(_T("[VisualSynan] Skipping morphology loading\n"));
 
     CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL);
     OutputDebugString(_T("[VisualSynan] Wait thread event created\n"));
@@ -193,20 +215,8 @@ BOOL CVisualSynanApp::InitInstance()
     ParseCommandLine(cmdInfo);
     OutputDebugString(_T("[VisualSynan] Command line parsed\n"));
 
-    try {
-        OutputDebugString(_T("[VisualSynan] Loading syntax for language...\n"));
-        if (!pMainFrame->LoadSyntaxByLanguage(cmdInfo.m_Language)) {
-            OutputDebugString(_T("[VisualSynan] Failed to load syntax!\n"));
-            return FALSE;
-        }
-        OutputDebugString(_T("[VisualSynan] Syntax loaded successfully\n"));
-    }
-    catch (CExpc e) {
-        CString errorMsg;
-        errorMsg.Format(_T("[VisualSynan] Exception while loading syntax: %s\n"), CString(e.what()));
-        OutputDebugString(errorMsg);
-        return FALSE;
-    }
+    // Skip syntax loading
+    OutputDebugString(_T("[VisualSynan] Skipping syntax loading\n"));
 
     // Show and update main window
     OutputDebugString(_T("[VisualSynan] Showing main window...\n"));

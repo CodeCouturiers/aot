@@ -8,6 +8,8 @@
 #include "VisualSynanView.h"
 #include "Resource.h"
 #include "wingdi.h"
+#include <locale>
+#include <clocale>
 
 CFont	CVisualSynanView::m_FontForWords;
 CFont	CVisualSynanView::m_FontForGroupNames;
@@ -47,6 +49,10 @@ END_MESSAGE_MAP()
 
 CVisualSynanView::CVisualSynanView()
 {
+	// Set locale for proper Russian text handling
+	setlocale(LC_ALL, "Russian");
+	std::locale::global(std::locale("Russian"));
+
 	// TODO: add construction code here
 	m_pHomonymsArray = NULL;
 	m_bDefaultFont = TRUE;
@@ -122,7 +128,15 @@ void CVisualSynanView::Dump(CDumpContext& dc) const
 
 CVisualSynanDoc* CVisualSynanView::GetDocument() // non-debug version is inline
 {
-	ASSERT(m_pDocument->IsKindOf(RUNTIME_CLASS(CVisualSynanDoc)));
+	ASSERT(m_pDocument != nullptr);
+	if (!m_pDocument) {
+		OutputDebugString(_T("[VisualSynan] Error: m_pDocument is null\n"));
+		return nullptr;
+	}
+	if (!m_pDocument->IsKindOf(RUNTIME_CLASS(CVisualSynanDoc))) {
+		OutputDebugString(_T("[VisualSynan] Error: Document is not CVisualSynanDoc\n"));
+		return nullptr;
+	}
 	return (CVisualSynanDoc*)m_pDocument;
 }
 #endif //_DEBUG
@@ -132,10 +146,47 @@ CVisualSynanDoc* CVisualSynanView::GetDocument() // non-debug version is inline
 
 void CVisualSynanView::OnPaint() 
 {
-	CString S = GetDocument()->m_VisualSentences.m_WorkTimeStr;
-	((CFrameWnd*)((CVisualSynanApp*)AfxGetApp())->m_pMainWnd)->SetMessageText(S);
-	ASSERT( GetDocument() );
+	// Set locale for proper Russian text handling
+	try {
+		setlocale(LC_ALL, "Russian_Russia.1251");
+		std::locale::global(std::locale("Russian_Russia.1251"));
+	}
+	catch (...) {
+		OutputDebugString(_T("[VisualSynan] Failed to set Russian locale\n"));
+	}
 
+	CVisualSynanDoc* pDoc = GetDocument();
+	if (!pDoc) {
+		OutputDebugString(_T("[VisualSynan] Error: Document is null in OnPaint\n"));
+		return;
+	}
+	
+	// Get the work time string and convert it properly for display
+	try {
+		std::string workTimeStr = _U8(pDoc->m_VisualSentences.m_WorkTimeStr);
+		CString S;
+		
+		// Convert from internal Windows-1251 to UTF-8 then to wide string for CString
+		std::string utf8Str = convert_to_utf8(workTimeStr, morphRussian);
+		S = utf8_to_wstring(utf8Str).c_str();
+		
+		// Add null pointer protection for status bar message
+		CVisualSynanApp* pApp = (CVisualSynanApp*)AfxGetApp();
+		if (pApp && pApp->m_pMainWnd) {
+			CFrameWnd* pFrame = (CFrameWnd*)pApp->m_pMainWnd;
+			if (pFrame && pFrame->GetSafeHwnd()) {
+				pFrame->SetMessageText(S);
+			}
+		}
+	}
+	catch (const convert_exception& e) {
+		OutputDebugString(_T("[VisualSynan] Text conversion error: "));
+		OutputDebugString(_U16(e.what()));
+		OutputDebugString(_T("\n"));
+	}
+	catch (...) {
+		OutputDebugString(_T("[VisualSynan] Unknown error in text conversion\n"));
+	}
 
 	CClientDC clDC(this);
 	CView::OnPaint();
@@ -146,52 +197,50 @@ void CVisualSynanView::OnPaint()
 	
 	CRect rectDevice;
 
-	//creating memory DC
-	GetClientRect(&clientRect);
-	rectDevice = clientRect;
-	OnPrepareDC(&clDC);
-	clDC.DPtoLP(&clientRect);
-	bmBmp.CreateCompatibleBitmap(&clDC, rectDevice.right , rectDevice.bottom);
-	memDC.CreateCompatibleDC(&clDC);
+	try {
+		//creating memory DC
+		GetClientRect(&clientRect);
+		rectDevice = clientRect;
+		OnPrepareDC(&clDC);
+		clDC.DPtoLP(&clientRect);
+		bmBmp.CreateCompatibleBitmap(&clDC, rectDevice.right , rectDevice.bottom);
+		memDC.CreateCompatibleDC(&clDC);
 
-	CBitmap* pOldBitmap = memDC.SelectObject(&bmBmp);
-	CBrush brBackground(::GetSysColor(COLOR_WINDOW));
-	memDC.FillRect(&rectDevice, &brBackground);
-	memDC.SetBkColor(::GetSysColor(COLOR_WINDOW));
+		CBitmap* pOldBitmap = memDC.SelectObject(&bmBmp);
+		CBrush brBackground(::GetSysColor(COLOR_WINDOW));
+		memDC.FillRect(&rectDevice, &brBackground);
+		memDC.SetBkColor(::GetSysColor(COLOR_WINDOW));
 
-	//selecting choosen font
-	CFont* pOldFont;
+		//selecting choosen font
+		CFont* pOldFont = nullptr;
 
-	if( m_bExistUsefulFont)
-	{
-		pOldFont = memDC.SelectObject(&m_FontForWords);
+		if(m_bExistUsefulFont) {
+			pOldFont = memDC.SelectObject(&m_FontForWords);
+		}
+
+		if(m_bFirsTime && !pDoc->NoSentences()) {
+			m_bFirsTime = FALSE;
+			pDoc->CalculateCoordinates(&memDC, clientRect.right, m_bShowGroups);
+		}
+
+		int iOffset = clientRect.top - rectDevice.top;
+
+		//drawing sentences in memory DC
+		pDoc->PrintSentences(&memDC, clientRect, iOffset);
+
+		//drawing it on the screen
+		clDC.BitBlt(0, clientRect.top, rectDevice.right, rectDevice.bottom, &memDC, 0, 0, SRCCOPY);
+
+		//restoring old bitmap and old font
+		if(pOldBitmap) memDC.SelectObject(pOldBitmap);
+		if(pOldFont) memDC.SelectObject(pOldFont);
+		memDC.DeleteDC();	
+		
+		ResizeScroll();
 	}
-
-
-
-	if( m_bFirsTime && !GetDocument()->NoSentences() )
-	{
-		m_bFirsTime = FALSE;
-		GetDocument()->CalculateCoordinates(&memDC,clientRect.right, m_bShowGroups);
+	catch (...) {
+		OutputDebugString(_T("[VisualSynan] Exception in drawing code\n"));
 	}
-
-
-	int iOffset = clientRect.top - rectDevice.top;
-
-	//drawing sentences in memory DC
-	GetDocument()->PrintSentences(&memDC,clientRect, iOffset);
-
-	//drawing it on the screen
-	clDC.BitBlt(0,clientRect.top, rectDevice.right,rectDevice.bottom,&memDC,0,0,SRCCOPY);
-
-	//restoring old bitmap and old font
-	memDC.SelectObject(pOldBitmap);
-	if( m_bExistUsefulFont)
-		memDC.SelectObject(pOldFont);
-	memDC.DeleteDC();	
-	
-	
-	ResizeScroll();
 }
 
 void CVisualSynanView::OnRButtonDown(UINT nFlags, CPoint point) 
@@ -401,26 +450,50 @@ void CVisualSynanView::UpdateFontsFromLogFont()
 
 void CVisualSynanView::OnInitialUpdate() 
 {
-	CView::OnInitialUpdate();	
-	CClientDC dc(this);
-	LOGFONT lfFont;
-	wcscpy(lfFont.lfFaceName,_T("Times New Roman"));
-	lfFont.lfCharSet = RUSSIAN_CHARSET;
-	EnumFontFamiliesEx(dc.m_hDC, &lfFont , &GetFefaultFontEx,(LPARAM)this,0);
-	if( !m_bExistUsefulFont )
-		EnumFontFamiliesEx(dc.m_hDC, NULL, &GetFefaultFontEx,(LPARAM)this,0);
+	try {
+		CView::OnInitialUpdate();    
+		if (!m_hWnd) {
+			OutputDebugString(_T("[VisualSynan] Error: Window handle is invalid in OnInitialUpdate\n"));
+			return;
+		}
 
-	UpdateFontsFromLogFont();
+		CClientDC dc(this);
+		LOGFONT lfFont;
+		ZeroMemory(&lfFont, sizeof(LOGFONT));
+		wcscpy(lfFont.lfFaceName,_T("Times New Roman"));
+		lfFont.lfCharSet = RUSSIAN_CHARSET;
+		
+		EnumFontFamiliesEx(dc.m_hDC, &lfFont, &GetFefaultFontEx,(LPARAM)this,0);
+		if(!m_bExistUsefulFont) {
+			EnumFontFamiliesEx(dc.m_hDC, NULL, &GetFefaultFontEx,(LPARAM)this,0);
+		}
 
-	//creating tooltip ctrl
-	EnableToolTips();
-	m_ctrlToolTip.Create(this);
-	CRect StupidRect(0,0,0,0);//some unuseful rect
-								//we will change this rect dinamicly
-	m_ctrlToolTip.AddTool( this, LPSTR_TEXTCALLBACK, StupidRect ,ID_WORD_TOOL);
-	m_ctrlToolTip.Activate(TRUE);
-	m_ctrlToolTip.SetDelayTime(TTDT_AUTOPOP,1000000);
-	ResizeScroll();
+		if(m_bExistUsefulFont) {
+			UpdateFontsFromLogFont();
+		} else {
+			OutputDebugString(_T("[VisualSynan] Warning: No suitable font found\n"));
+		}
+
+		//creating tooltip ctrl
+		EnableToolTips();
+		if(!m_ctrlToolTip.Create(this)) {
+			OutputDebugString(_T("[VisualSynan] Error: Failed to create tooltip control\n"));
+			return;
+		}
+
+		CRect StupidRect(0,0,0,0);
+		if(!m_ctrlToolTip.AddTool(this, LPSTR_TEXTCALLBACK, StupidRect, ID_WORD_TOOL)) {
+			OutputDebugString(_T("[VisualSynan] Error: Failed to add tooltip tool\n"));
+			return;
+		}
+
+		m_ctrlToolTip.Activate(TRUE);
+		m_ctrlToolTip.SetDelayTime(TTDT_AUTOPOP,1000000);
+		ResizeScroll();
+	}
+	catch(...) {
+		OutputDebugString(_T("[VisualSynan] Exception in OnInitialUpdate\n"));
+	}
 }
 
 void CVisualSynanView::ResizeScroll()
@@ -543,32 +616,46 @@ void CVisualSynanView::LogFontCpy(LOGFONT* dstFont, LOGFONT srcFont)
 
 BOOL CVisualSynanView::PreTranslateMessage(MSG* pMsg) 
 {
-	if(	pMsg->message== WM_LBUTTONDOWN ||
-		pMsg->message== WM_LBUTTONUP ||
-		pMsg->message== WM_MOUSEMOVE) 
-	{
-		CClientDC dc(NULL);
-		OnPrepareDC(&dc);
-		BOOL bInSomeWord;
-		CPoint ClientPoint = pMsg->pt;
-		ScreenToClient(&ClientPoint);
-		dc.DPtoLP(&ClientPoint);
-		bInSomeWord = GetDocument()->GetHomonymsArray(ClientPoint,NULL,&m_iActiveSentenceTT,&m_iActiveWordTT);
+	try {
+		if(!pMsg) return TRUE;
 
-		if(bInSomeWord)
-		{				
-			dc.LPtoDP(&ClientPoint);
-			CRect rect(ClientPoint.x - 1, ClientPoint.y - 1, ClientPoint.x + 1,ClientPoint.y + 1);
-			m_ctrlToolTip.SetToolRect(this,ID_WORD_TOOL,rect);
-			m_ctrlToolTip.RelayEvent(pMsg);
-		}			
-		else
+		if(pMsg->message == WM_LBUTTONDOWN ||
+		   pMsg->message == WM_LBUTTONUP ||
+		   pMsg->message == WM_MOUSEMOVE) 
 		{
-			m_iActiveWordTT = -1;
-			m_iActiveSentenceTT = -1;
+			CVisualSynanDoc* pDoc = GetDocument();
+			if(!pDoc) {
+				return CScrollView::PreTranslateMessage(pMsg);
+			}
+
+			CClientDC dc(NULL);
+			OnPrepareDC(&dc);
+			BOOL bInSomeWord;
+			CPoint ClientPoint = pMsg->pt;
+			ScreenToClient(&ClientPoint);
+			dc.DPtoLP(&ClientPoint);
+			
+			bInSomeWord = pDoc->GetHomonymsArray(ClientPoint, NULL, &m_iActiveSentenceTT, &m_iActiveWordTT);
+
+			if(bInSomeWord && ::IsWindow(m_ctrlToolTip.m_hWnd))
+			{                
+				dc.LPtoDP(&ClientPoint);
+				CRect rect(ClientPoint.x - 1, ClientPoint.y - 1, ClientPoint.x + 1, ClientPoint.y + 1);
+				m_ctrlToolTip.SetToolRect(this, ID_WORD_TOOL, rect);
+				m_ctrlToolTip.RelayEvent(pMsg);
+			}            
+			else
+			{
+				m_iActiveWordTT = -1;
+				m_iActiveSentenceTT = -1;
+			}
 		}
+		return CScrollView::PreTranslateMessage(pMsg);
 	}
-	return CScrollView::PreTranslateMessage(pMsg);
+	catch(...) {
+		OutputDebugString(_T("[VisualSynan] Exception in PreTranslateMessage\n"));
+		return TRUE;
+	}
 }
 
 int CVisualSynanView::OnNeedText( UINT id, NMHDR * pNMHDR, LRESULT * pResult )

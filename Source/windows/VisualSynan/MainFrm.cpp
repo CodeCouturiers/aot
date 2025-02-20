@@ -46,24 +46,31 @@ CMainFrame::CMainFrame()
 
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
+	OutputDebugString(_T("[VisualSynan] MainFrame OnCreate starting\n"));
+
 	if (CMDIFrameWnd::OnCreate(lpCreateStruct) == -1)
+	{
+		OutputDebugString(_T("[VisualSynan] MainFrame base class OnCreate failed\n"));
 		return -1;
+	}
 	
 	if (!m_wndToolBar.CreateEx(this, TBSTYLE_FLAT, WS_CHILD | WS_VISIBLE | CBRS_TOP
 		| CBRS_GRIPPER | CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC) ||
 		!m_wndToolBar.LoadToolBar(IDR_MAINFRAME))
 	{
-		TRACE0("Failed to create toolbar\n");
+		OutputDebugString(_T("[VisualSynan] Failed to create toolbar\n"));
 		return -1;      // fail to create
 	}
+	OutputDebugString(_T("[VisualSynan] Toolbar created successfully\n"));
 
 	if (!m_wndStatusBar.Create(this) ||
 		!m_wndStatusBar.SetIndicators(indicators,
 		  sizeof(indicators)/sizeof(UINT)))
 	{
-		TRACE0("Failed to create status bar\n");
+		OutputDebugString(_T("[VisualSynan] Failed to create status bar\n"));
 		return -1;      // fail to create
 	}
+	OutputDebugString(_T("[VisualSynan] Status bar created successfully\n"));
 
 	// TODO: Delete these three lines if you don't want the toolbar to
 	//  be dockable
@@ -73,6 +80,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	// CG: The following line was added by the Splash Screen component.
 	CSplashWnd::ShowSplashScreen(this);
+	OutputDebugString(_T("[VisualSynan] MainFrame OnCreate completed\n"));
 	return 0;
 }
 

@@ -27,6 +27,18 @@ public:
 	{ return m_strCurFileName;}
 	bool LoadSyntaxByLanguage(MorphLanguageEnum t);
 
+	// Add status bar check method
+	BOOL IsStatusBarValid() const {
+		return (m_wndStatusBar.GetSafeHwnd() != NULL);
+	}
+
+	// Override SetMessageText to add validation
+	virtual void SetMessageText(LPCTSTR lpszText) {
+		if (IsStatusBarValid()) {
+			CMDIFrameWnd::SetMessageText(lpszText);
+		}
+	}
+
 // Operations
 public:
 	CString GetFileWithThisFilter(CString strFilter);

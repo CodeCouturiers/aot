@@ -10,6 +10,15 @@
 #endif // _MSC_VER > 1000
 #include "VisualSentences.h"
 
+// Helper functions for string conversion
+inline std::string _U8(CString s) {
+	return wstring_to_utf8((const TCHAR*)s);
+}
+
+inline CString _U16(std::string s) {
+	return utf8_to_wstring(s.c_str()).c_str();
+}
+
 class CVisualSynanDoc : public CDocument
 {
 protected: // create from serialization only
@@ -102,6 +111,36 @@ protected:
 	//{{AFX_MSG(CVisualSynanDoc)
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
+
+	// Helper function to convert text for internal storage
+	std::string ConvertTextForStorage(const CString& text) {
+		try {
+			// Convert from wide string to UTF-8 then to Windows-1251
+			std::string utf8Str = wstring_to_utf8(std::wstring(text));
+			return convert_from_utf8(utf8Str.c_str(), morphRussian);
+		}
+		catch (const convert_exception& e) {
+			OutputDebugString(_T("[VisualSynan] Text conversion error in storage: "));
+			OutputDebugString(_U16(e.what()));
+			OutputDebugString(_T("\n"));
+			return std::string();
+		}
+	}
+
+	// Helper function to convert text for display
+	CString ConvertTextForDisplay(const std::string& text) {
+		try {
+			// Convert from Windows-1251 to UTF-8 then to wide string
+			std::string utf8Str = convert_to_utf8(text, morphRussian);
+			return utf8_to_wstring(utf8Str).c_str();
+		}
+		catch (const convert_exception& e) {
+			OutputDebugString(_T("[VisualSynan] Text conversion error in display: "));
+			OutputDebugString(_U16(e.what()));
+			OutputDebugString(_T("\n"));
+			return _T("Error displaying text");
+		}
+	}
 };
 
 /////////////////////////////////////////////////////////////////////////////
