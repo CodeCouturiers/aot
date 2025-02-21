@@ -129,16 +129,40 @@ BOOL CVisualSynanApp::InitInstance()
     
     // Set paths
     CString strBaseDir = _T("C:\\RML");
-    CString strDictsDir = strBaseDir + _T("\\Dicts\\Morph\\Russian");
+    CString strMorphDir = strBaseDir + _T("\\Dicts\\Morph\\Russian");
+    CString strOborDir = strBaseDir + _T("\\Dicts\\Obor");
     
+    // Create Obor directory if it doesn't exist
+    if (!PathFileExists(strOborDir)) {
+        if (!CreateDirectory(strOborDir, NULL)) {
+            CString errMsg;
+            errMsg.Format(_T("Failed to create directory:\n%s\nError code: %d"), strOborDir, GetLastError());
+            AfxMessageBox(errMsg, MB_ICONERROR);
+            OutputDebugString(_T("[VisualSynan] Error: Failed to create Obor directory\n"));
+            return FALSE;
+        }
+        
+        // Create empty config.rcf file
+        CString configPath = strOborDir + _T("\\config.rcf");
+        HANDLE hFile = CreateFile(configPath, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            CString errMsg;
+            errMsg.Format(_T("Failed to create config file:\n%s\nError code: %d"), configPath, GetLastError());
+            AfxMessageBox(errMsg, MB_ICONERROR);
+            OutputDebugString(_T("[VisualSynan] Error: Failed to create config.rcf\n"));
+            return FALSE;
+        }
+        CloseHandle(hFile);
+    }
+
     // Log actual file system entries with full details
     OutputDebugString(_T("\n[VisualSynan] Scanning directory contents:\n"));
     WIN32_FIND_DATA findData;
-    HANDLE hFind = FindFirstFile(strDictsDir + _T("\\*.*"), &findData);
+    HANDLE hFind = FindFirstFile(strMorphDir + _T("\\*.*"), &findData);
     if (hFind != INVALID_HANDLE_VALUE) {
         do {
             CString fileName = findData.cFileName;
-            CString fullPath = strDictsDir + _T("\\") + fileName;
+            CString fullPath = strMorphDir + _T("\\") + fileName;
             CString fileInfo;
             fileInfo.Format(_T("[VisualSynan] Found: %s (Attributes: 0x%08X)\n"), fullPath, findData.dwFileAttributes);
             OutputDebugString(fileInfo);
@@ -146,7 +170,7 @@ BOOL CVisualSynanApp::InitInstance()
         FindClose(hFind);
     } else {
         CString errMsg;
-        errMsg.Format(_T("[VisualSynan] Failed to scan directory: %s (Error: %d)\n"), strDictsDir, GetLastError());
+        errMsg.Format(_T("[VisualSynan] Failed to scan directory: %s (Error: %d)\n"), strMorphDir, GetLastError());
         OutputDebugString(errMsg);
     }
 
@@ -161,7 +185,7 @@ BOOL CVisualSynanApp::InitInstance()
     CString foundPaths[1];
 
     // First pass - find files with any case
-    hFind = FindFirstFile(strDictsDir + _T("\\*.*"), &findData);
+    hFind = FindFirstFile(strMorphDir + _T("\\*.*"), &findData);
     if (hFind != INVALID_HANDLE_VALUE) {
         do {
             CString currentFile = findData.cFileName;
@@ -173,7 +197,7 @@ BOOL CVisualSynanApp::InitInstance()
                 
                 if (currentFile == reqFile) {
                     filesFound[0] = true;
-                    foundPaths[0] = strDictsDir + _T("\\") + findData.cFileName; // Store original filename
+                    foundPaths[0] = strMorphDir + _T("\\") + findData.cFileName; // Store original filename
                     
                     CString foundMsg;
                     foundMsg.Format(_T("[VisualSynan] Found dictionary file: %s\n"), foundPaths[0]);
@@ -187,7 +211,7 @@ BOOL CVisualSynanApp::InitInstance()
     // Check results and set correct paths
     if (!filesFound[0]) {
         CString errMsg;
-        errMsg.Format(_T("Missing required dictionary file:\nmorphs.bin\nDirectory: %s\n"), strDictsDir);
+        errMsg.Format(_T("Missing required dictionary file:\nmorphs.bin\nDirectory: %s\n"), strMorphDir);
         AfxMessageBox(errMsg, MB_ICONERROR);
         OutputDebugString(_T("[VisualSynan] ") + errMsg);
         return FALSE;
@@ -200,9 +224,9 @@ BOOL CVisualSynanApp::InitInstance()
     OutputDebugString(logMsg);
 
     // Set working directory if all checks pass
-    if (!SetCurrentDirectory(strDictsDir)) {
+    if (!SetCurrentDirectory(strMorphDir)) {
         CString errMsg;
-        errMsg.Format(_T("Failed to set working directory to:\n%s\nError code: %d"), strDictsDir, GetLastError());
+        errMsg.Format(_T("Failed to set working directory to:\n%s\nError code: %d"), strMorphDir, GetLastError());
         AfxMessageBox(errMsg, MB_ICONERROR);
         OutputDebugString(_T("[VisualSynan] Error: Failed to set working directory\n"));
         return FALSE;
@@ -211,7 +235,7 @@ BOOL CVisualSynanApp::InitInstance()
     // Log the directories for debugging
     CString dirInfo;
     dirInfo.Format(_T("[VisualSynan] Executable directory: %s\n[VisualSynan] Dictionary directory: %s\n"), 
-                   strExeDir, strDictsDir);
+                   strExeDir, strMorphDir);
     OutputDebugString(dirInfo);
 
     // CG: The following block was added by the Splash Screen component.
