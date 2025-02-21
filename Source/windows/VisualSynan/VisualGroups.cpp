@@ -19,10 +19,14 @@ void  CVisualGroups::CalculateGroupsCoordinates(CDC* pDC,int iWidth, int& iLine,
 	{
 		
 		pGroup = m_arrActiveGroups[i];
-		if( pGroup->m_bClause )
-			Color = RGB(255,0,0);
-		else
-			Color = RGB(0,0,255);
+		if( pGroup->m_bClause ) {
+			// Более заметный красный для клауз
+			Color = RGB(220,20,60);  // Crimson
+		} else {
+			// Градация синего в зависимости от уровня группы
+			int blueIntensity = max(50, 204 - (pGroup->m_iLevel * 30));
+			Color = RGB(0, 102, blueIntensity);  // Синий с градацией по уровню
+		}
 		
 		int iFirstWord, iLastWord;
 		iFirstWord = pGroup->m_iFirstWord;

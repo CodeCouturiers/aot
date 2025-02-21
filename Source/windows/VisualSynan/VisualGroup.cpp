@@ -148,55 +148,105 @@ void CVisualGroup::PrintGroupPart(CDC* pDC, int i, int iOffset)
 		return;
 
 	CPartOfGrArc* pPart = reinterpret_cast<CPartOfGrArc*>(m_vectorParts[i]);
-
 	ASSERT( pPart != NULL );
 
-	CPen penForArc(PS_SOLID, 1, pPart->m_Color);
-	CPen* pOldPen = pDC->SelectObject(&penForArc);
+	// Настраиваем качество отрисовки
+	int oldMode = pDC->SetBkMode(TRANSPARENT);
+	pDC->SetROP2(R2_COPYPEN);
 
-	CPoint pointStart(pPart->m_pointStart.x, pPart->m_pointStart.y - iOffset );
+	// Создаем градиентную кисть для заливки
+	COLORREF baseColor = pPart->m_Color;
+	COLORREF lightColor = RGB(
+		min(255, GetRValue(baseColor) + 40),
+		min(255, GetGValue(baseColor) + 40),
+		min(255, GetBValue(baseColor) + 40)
+	);
+
+	// Толщина линии зависит от типа (клауза или группа)
+	int penWidth = m_bClause ? 3 : 2;
+	
+	// Создаем перо с закругленными концами для более плавного вида
+	LOGBRUSH lb;
+	lb.lbStyle = BS_SOLID;
+	lb.lbColor = baseColor;
+	lb.lbHatch = 0;
+	
+	CPen pen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND | PS_JOIN_ROUND, 
+			 penWidth, &lb);
+	CPen* pOldPen = pDC->SelectObject(&pen);
+
+	CPoint pointStart(pPart->m_pointStart.x, pPart->m_pointStart.y - iOffset);
 	CPoint pointEnd(pPart->m_pointEnd.x, pPart->m_pointEnd.y - iOffset);
-	CRect  rectForArc(pPart->m_RectForArc);
+	CRect rectForArc(pPart->m_RectForArc);
 	rectForArc.bottom -= iOffset;
 	rectForArc.top -= iOffset;
 
-	if( pPart->type == ArcFig )
+	if(pPart->type == ArcFig)
 	{
-		//CBrush br(pPart->m_Color);
-		pDC->Arc(rectForArc, pointStart, pointEnd);//AngleArc( pointEnd.x, pointEnd.y, RADIUS_ANGLE, pPart->m_iAngle1, pPart->m_iAngle2);	
-		//pDC->FrameRect(&rectForArc, &br);
-
+		// Рисуем дугу с плавным переходом
+		pDC->Arc(rectForArc, pointStart, pointEnd);
+		
+		// Добавляем небольшой блик для объема
+		CPen lightPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 1, lightColor);
+		pDC->SelectObject(&lightPen);
+		rectForArc.DeflateRect(1, 1);
+		pDC->Arc(rectForArc, pointStart, pointEnd);
 	}
-
-	if( pPart->type == Line )
+	else if(pPart->type == Line)
 	{
+		// Рисуем основную линию
+		pDC->MoveTo(pointStart);
+		pDC->LineTo(pointEnd);
+		
+		// Добавляем тонкую подсветку сверху для объема
+		CPen lightPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 1, lightColor);
+		pDC->SelectObject(&lightPen);
+		pointStart.y -= 1;
+		pointEnd.y -= 1;
 		pDC->MoveTo(pointStart);
 		pDC->LineTo(pointEnd);
 	}
 
+	// Восстанавливаем настройки DC
 	pDC->SelectObject(pOldPen);
+	pDC->SetROP2(oldMode);
 
-	if( pPart->m_bHasDescription )
+	// Улучшенная отрисовка текста описания
+	if(pPart->m_bHasDescription)
 	{
 		CFont* pOldFont = pDC->GetCurrentFont(); 
-
-		pDC->SelectObject(& (CVisualSynanView::m_FontForGroupNames));
+		pDC->SelectObject(&(CVisualSynanView::m_FontForGroupNames));
 
 		TEXTMETRIC txtM;
 		pDC->GetTextMetrics(&txtM);
 
-
-		if( !pPart->m_bWholeArc )
+		// Создаем эффект тени для текста
+		COLORREF oldTextColor = pDC->SetTextColor(RGB(128, 128, 128));
+		
+		CString& text = m_strDescription;
+		int textX, textY;
+		
+		if(!pPart->m_bWholeArc)
 		{
-			pDC->TextOut(5,pPart->m_pointStart.y - txtM.tmHeight - 2 - iOffset, m_strDescription, m_strDescription.GetLength() );
+			textX = 6;
+			textY = pPart->m_pointStart.y - txtM.tmHeight - 4 - iOffset + 1;
 		}
 		else
 		{
-			pDC->TextOut(m_pointLeft.x + (m_pointRight.x - m_pointLeft.x)/2 +2 ,pPart->m_pointStart.y - txtM.tmHeight - 2 - iOffset, m_strDescription, m_strDescription.GetLength());
+			textX = m_pointLeft.x + (m_pointRight.x - m_pointLeft.x)/2 + 2;
+			textY = pPart->m_pointStart.y - txtM.tmHeight - 4 - iOffset + 1;
 		}
-
-		pDC->SelectObject(pOldFont);
 		
+		// Рисуем тень
+		pDC->TextOut(textX + 1, textY + 1, text, text.GetLength());
+		
+		// Рисуем основной текст
+		pDC->SetTextColor(baseColor);
+		pDC->TextOut(textX, textY, text, text.GetLength());
+
+		// Восстанавливаем настройки
+		pDC->SetTextColor(oldTextColor);
+		pDC->SelectObject(pOldFont);
 	}
 }
 
