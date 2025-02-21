@@ -127,22 +127,91 @@ BOOL CVisualSynanApp::InitInstance()
     CString strExePath(exePath);
     CString strExeDir = strExePath.Left(strExePath.ReverseFind('\\'));
     
-    // Go up four directories from bin: bin -> x64-Debug -> build -> out -> RML
-    CString strBaseDir = strExeDir;
-    for (int i = 0; i < 4; i++) {
-        int pos = strBaseDir.ReverseFind('\\');
-        if (pos != -1) {
-            strBaseDir = strBaseDir.Left(pos);
-        }
-    }
+    // Set paths
+    CString strBaseDir = _T("C:\\RML");
+    CString strDictsDir = strBaseDir + _T("\\Dicts\\Morph\\Russian");
     
-    // Set the working directory to the base RML directory
-    SetCurrentDirectory(strBaseDir);
+    // Log actual file system entries with full details
+    OutputDebugString(_T("\n[VisualSynan] Scanning directory contents:\n"));
+    WIN32_FIND_DATA findData;
+    HANDLE hFind = FindFirstFile(strDictsDir + _T("\\*.*"), &findData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            CString fileName = findData.cFileName;
+            CString fullPath = strDictsDir + _T("\\") + fileName;
+            CString fileInfo;
+            fileInfo.Format(_T("[VisualSynan] Found: %s (Attributes: 0x%08X)\n"), fullPath, findData.dwFileAttributes);
+            OutputDebugString(fileInfo);
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
+    } else {
+        CString errMsg;
+        errMsg.Format(_T("[VisualSynan] Failed to scan directory: %s (Error: %d)\n"), strDictsDir, GetLastError());
+        OutputDebugString(errMsg);
+    }
+
+    // Check for required dictionary files with case-insensitive search
+    const TCHAR* requiredFiles[] = {
+        _T("morph.bin"),
+        _T("MORPH.BIN"),    // Try uppercase
+        _T("Morph.bin")     // Try mixed case
+    };
+
+    bool filesFound[1] = {false}; // только morphs
+    CString foundPaths[1];
+
+    // First pass - find files with any case
+    hFind = FindFirstFile(strDictsDir + _T("\\*.*"), &findData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            CString currentFile = findData.cFileName;
+            currentFile.MakeLower(); // Convert to lowercase for comparison
+
+            for (int i = 0; i < 3; i++) {  // теперь проверяем только 3 варианта для morphs.bin
+                CString reqFile = requiredFiles[i];
+                reqFile.MakeLower();
+                
+                if (currentFile == reqFile) {
+                    filesFound[0] = true;
+                    foundPaths[0] = strDictsDir + _T("\\") + findData.cFileName; // Store original filename
+                    
+                    CString foundMsg;
+                    foundMsg.Format(_T("[VisualSynan] Found dictionary file: %s\n"), foundPaths[0]);
+                    OutputDebugString(foundMsg);
+                }
+            }
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
+    }
+
+    // Check results and set correct paths
+    if (!filesFound[0]) {
+        CString errMsg;
+        errMsg.Format(_T("Missing required dictionary file:\nmorphs.bin\nDirectory: %s\n"), strDictsDir);
+        AfxMessageBox(errMsg, MB_ICONERROR);
+        OutputDebugString(_T("[VisualSynan] ") + errMsg);
+        return FALSE;
+    }
+
+    // Use the found paths for further processing
+    OutputDebugString(_T("[VisualSynan] Using dictionary file:\n"));
+    CString logMsg;
+    logMsg.Format(_T("[VisualSynan] %s\n"), foundPaths[0]);
+    OutputDebugString(logMsg);
+
+    // Set working directory if all checks pass
+    if (!SetCurrentDirectory(strDictsDir)) {
+        CString errMsg;
+        errMsg.Format(_T("Failed to set working directory to:\n%s\nError code: %d"), strDictsDir, GetLastError());
+        AfxMessageBox(errMsg, MB_ICONERROR);
+        OutputDebugString(_T("[VisualSynan] Error: Failed to set working directory\n"));
+        return FALSE;
+    }
     
     // Log the directories for debugging
     CString dirInfo;
-    dirInfo.Format(_T("[VisualSynan] Executable directory: %s\n[VisualSynan] Base directory: %s\n"), 
-                   strExeDir, strBaseDir);
+    dirInfo.Format(_T("[VisualSynan] Executable directory: %s\n[VisualSynan] Dictionary directory: %s\n"), 
+                   strExeDir, strDictsDir);
     OutputDebugString(dirInfo);
 
     // CG: The following block was added by the Splash Screen component.
