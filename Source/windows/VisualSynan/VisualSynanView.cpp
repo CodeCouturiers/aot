@@ -207,9 +207,23 @@ void CVisualSynanView::OnPaint()
 		memDC.CreateCompatibleDC(&clDC);
 
 		CBitmap* pOldBitmap = memDC.SelectObject(&bmBmp);
-		CBrush brBackground(::GetSysColor(COLOR_WINDOW));
-		memDC.FillRect(&rectDevice, &brBackground);
-		memDC.SetBkColor(::GetSysColor(COLOR_WINDOW));
+		
+		// Создаем градиентный фон
+		COLORREF colorStart = RGB(248, 248, 255);  // Светло-голубой
+		COLORREF colorEnd = RGB(255, 255, 255);    // Белый
+		
+		for(int i = 0; i < rectDevice.Height(); i++)
+		{
+			int r = GetRValue(colorStart) + (GetRValue(colorEnd) - GetRValue(colorStart)) * i / rectDevice.Height();
+			int g = GetGValue(colorStart) + (GetGValue(colorEnd) - GetGValue(colorStart)) * i / rectDevice.Height();
+			int b = GetBValue(colorStart) + (GetBValue(colorEnd) - GetBValue(colorStart)) * i / rectDevice.Height();
+			
+			COLORREF color = RGB(r, g, b);
+			memDC.FillSolidRect(0, i, rectDevice.Width(), 1, color);
+		}
+
+		// Устанавливаем улучшенное качество отрисовки
+		memDC.SetBkMode(TRANSPARENT);
 
 		//selecting choosen font
 		CFont* pOldFont = nullptr;
@@ -383,70 +397,30 @@ int CALLBACK TestIfTrueTypeEx(
 
 void CVisualSynanView::UpdateFontsFromLogFont() 
 {
-	m_FontForWords.CreateFontIndirect(&m_LogFontForWords);
+	// Основной шрифт с улучшенным сглаживанием
+	LOGFONT logFont = m_LogFontForWords;
+	logFont.lfQuality = CLEARTYPE_QUALITY;  // Используем ClearType
+	m_FontForWords.CreateFontIndirect(&logFont);
 
+	// Шрифт для имен групп - более компактный
+	logFont.lfHeight = (m_LogFontForWords.lfHeight/3) * 2;
+	logFont.lfWidth = (m_LogFontForWords.lfWidth/3) * 2;
+	m_FontForGroupNames.CreateFontIndirect(&logFont);
 
-	m_FontForGroupNames.CreateFont((m_LogFontForWords.lfHeight/3)*2,
-									(m_LogFontForWords.lfWidth/3) * 2,
-									m_LogFontForWords.lfEscapement,
-									m_LogFontForWords.lfOrientation,
-									m_LogFontForWords.lfWeight,
-									m_LogFontForWords.lfItalic,
-									m_LogFontForWords.lfUnderline,
-									m_LogFontForWords.lfStrikeOut,
-									m_LogFontForWords.lfCharSet,
-									m_LogFontForWords.lfOutPrecision,
-									m_LogFontForWords.lfClipPrecision,
-									m_LogFontForWords.lfQuality,
-									m_LogFontForWords.lfPitchAndFamily,
-									m_LogFontForWords.lfFaceName);
+	// Жирный шрифт с улучшенным начертанием
+	logFont = m_LogFontForWords;
+	logFont.lfWeight = FW_BOLD;
+	m_BoldFontForWords.CreateFontIndirect(&logFont);
 
-	m_BoldFontForWords.CreateFont(		m_LogFontForWords.lfHeight,
-									m_LogFontForWords.lfWidth,
-									m_LogFontForWords.lfEscapement,
-									m_LogFontForWords.lfOrientation,
-									FW_BOLD,									
-									m_LogFontForWords.lfItalic,									
-									m_LogFontForWords.lfUnderline,
-									m_LogFontForWords.lfStrikeOut,
-									m_LogFontForWords.lfCharSet,
-									m_LogFontForWords.lfOutPrecision,
-									m_LogFontForWords.lfClipPrecision,
-									m_LogFontForWords.lfQuality,
-									m_LogFontForWords.lfPitchAndFamily,
-									m_LogFontForWords.lfFaceName);	
+	// Жирный подчеркнутый шрифт
+	logFont.lfUnderline = TRUE;
+	m_BoldUnderlineFontForWords.CreateFontIndirect(&logFont);
 
-	m_BoldUnderlineFontForWords.CreateFont(		m_LogFontForWords.lfHeight,
-									m_LogFontForWords.lfWidth,
-									m_LogFontForWords.lfEscapement,
-									m_LogFontForWords.lfOrientation,
-									FW_BOLD,									
-									m_LogFontForWords.lfItalic,									
-									TRUE,
-									m_LogFontForWords.lfStrikeOut,
-									m_LogFontForWords.lfCharSet,
-									m_LogFontForWords.lfOutPrecision,
-									m_LogFontForWords.lfClipPrecision,
-									m_LogFontForWords.lfQuality,
-									m_LogFontForWords.lfPitchAndFamily,
-									m_LogFontForWords.lfFaceName);	
-
-	m_UnderlineFontForWords.CreateFont(		m_LogFontForWords.lfHeight,
-									m_LogFontForWords.lfWidth,
-									m_LogFontForWords.lfEscapement,
-									m_LogFontForWords.lfOrientation,
-									m_LogFontForWords.lfWeight,									
-									m_LogFontForWords.lfItalic,									
-									TRUE,
-									m_LogFontForWords.lfStrikeOut,
-									m_LogFontForWords.lfCharSet,
-									m_LogFontForWords.lfOutPrecision,
-									m_LogFontForWords.lfClipPrecision,
-									m_LogFontForWords.lfQuality,
-									m_LogFontForWords.lfPitchAndFamily,
-									m_LogFontForWords.lfFaceName);	
-
-};
+	// Подчеркнутый шрифт
+	logFont = m_LogFontForWords;
+	logFont.lfUnderline = TRUE;
+	m_UnderlineFontForWords.CreateFontIndirect(&logFont);
+}
 
 void CVisualSynanView::OnInitialUpdate() 
 {

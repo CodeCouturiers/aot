@@ -79,7 +79,23 @@ void CVisualSynanApp::OnSynFileNew()
 {
 	CDocTemplate* T = GetSynTemplate();
 	CDocument* pDoc = T->CreateNewDocument();
-	T->InitialUpdateFrame(T->CreateNewFrame(pDoc, NULL), pDoc, TRUE);
+	
+	// Create new frame with custom size and position
+	CFrameWnd* pFrame = T->CreateNewFrame(pDoc, NULL);
+	if (pFrame) {
+		// Set reasonable default window size
+		RECT rect;
+		pFrame->GetWindowRect(&rect);
+		rect.right = rect.left + 800;  // width
+		rect.bottom = rect.top + 600;  // height
+		pFrame->MoveWindow(&rect, FALSE);
+		
+		// Center the window
+		pFrame->CenterWindow();
+		
+		// Initialize the frame
+		T->InitialUpdateFrame(pFrame, pDoc, TRUE);
+	}
 }
 
 class CVisualSynanCommandLineInfo  : public CCommandLineInfo
@@ -246,7 +262,7 @@ BOOL CVisualSynanApp::InitInstance()
         OutputDebugString(_T("[VisualSynan] Splash screen initialized\n"));
     }
 
-    // Create main MDI Frame window first, before other initialization
+    // Create main MDI Frame window with modern style
     OutputDebugString(_T("[VisualSynan] Creating main frame...\n"));
     CMainFrame* pMainFrame = new CMainFrame;
     if (!pMainFrame) {
@@ -254,12 +270,43 @@ BOOL CVisualSynanApp::InitInstance()
         return FALSE;
     }
 
+    // Set modern visual style
+    OutputDebugString(_T("[VisualSynan] Setting visual styles...\n"));
+    
+    // Enable visual styles for modern look
+    SetWindowTheme(pMainFrame->GetSafeHwnd(), L"Explorer", NULL);
+    
+    // Custom frame initialization
     if (!pMainFrame->LoadFrame(IDR_MAINFRAME)) {
         OutputDebugString(_T("[VisualSynan] Failed to load main frame!\n"));
         delete pMainFrame;
         return FALSE;
     }
+
+    // Customize main window
+    pMainFrame->SetWindowText(_T("VisualSynan - Синтаксический анализатор"));
     
+    // Initialize status bar with multiple panes
+    CStatusBar* pStatusBar = NULL;
+    if (pMainFrame->GetStatusBar(pStatusBar) && pStatusBar) {
+        const UINT indicators[] = {
+            ID_SEPARATOR,           // Main status pane
+            ID_INDICATOR_CAPS,      // Using built-in indicator instead
+            ID_INDICATOR_NUM        // Using built-in indicator instead
+        };
+        pStatusBar->SetIndicators(indicators, sizeof(indicators)/sizeof(UINT));
+        
+        // Set pane widths
+        pStatusBar->SetPaneInfo(0, ID_SEPARATOR, SBPS_STRETCH, 0);
+        pStatusBar->SetPaneInfo(1, ID_INDICATOR_CAPS, SBPS_NORMAL, 100);
+        pStatusBar->SetPaneInfo(2, ID_INDICATOR_NUM, SBPS_NORMAL, 150);
+        
+        // Set initial status text
+        pStatusBar->SetPaneText(0, _T("Готов к работе"));
+        pStatusBar->SetPaneText(1, GlobalLanguage == morphGerman ? _T("Немецкий") : _T("Русский"));
+        pStatusBar->SetPaneText(2, _T(""));
+    }
+
     m_pMainWnd = pMainFrame;
     if (!m_pMainWnd) {
         OutputDebugString(_T("[VisualSynan] Critical Error: m_pMainWnd is NULL after assignment!\n"));
@@ -403,7 +450,7 @@ BOOL CVisualSynanApp::InitInstance()
 
     // Show and update main window
     OutputDebugString(_T("[VisualSynan] Showing main window...\n"));
-    pMainFrame->ShowWindow(SW_SHOW);
+    pMainFrame->ShowWindow(SW_MAXIMIZE);
     pMainFrame->UpdateWindow();
     OutputDebugString(_T("[VisualSynan] Main window shown and updated\n"));
 

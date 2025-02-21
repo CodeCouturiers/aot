@@ -75,6 +75,12 @@ protected:
 	afx_msg LRESULT OnProcessTxtFile(WPARAM, LPARAM);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
+
+public:
+	BOOL GetStatusBar(CStatusBar*& pBar) {
+		pBar = &m_wndStatusBar;
+		return TRUE;
+	}
 };
 
 /////////////////////////////////////////////////////////////////////////////

@@ -130,58 +130,64 @@ int CVisualWord::GetWordHight(CDC* pDC)
 
 BOOL CVisualWord::PrintWord(CDC* pDC, int iOffset)
 {
-	CFont* pOldFont = NULL;	
+    CFont* pOldFont = NULL;    
+    COLORREF old_color = pDC->GetTextColor();
 
+    // Улучшенная цветовая схема
+    if (m_bInTermin) {
+        pDC->SetTextColor(RGB(0, 102, 204));  // Более мягкий синий
+    }
+    else if (m_bArtificialCreated) {
+        pDC->SetTextColor(RGB(204, 51, 51));  // Более мягкий красный
+    }
 
-	COLORREF old_color;
+    // Антиалиасинг для лучшего качества текста
+    int oldMode = pDC->SetBkMode(TRANSPARENT);
 
-	if( m_bInTermin )
-	{			
-		old_color = pDC->SetTextColor(RGB(0,0,255));
-	}	
-	else
-	if( m_bArtificialCreated )
-	{			
-		old_color = pDC->SetTextColor(RGB(255,0,0));
-	}	
+    BOOL bSubjOrPredk = ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bSubj || 
+                       ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk;
 
-	BOOL bSubjOrPredk = ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bSubj || ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk;
-	if( bSubjOrPredk )
-	{
-		pOldFont = pDC->GetCurrentFont(); 
-		if( m_bBold ||  m_bArtificialCreated )
-			pDC->SelectObject(& (CVisualSynanView::m_BoldUnderlineFontForWords) );
-		else
-			pDC->SelectObject(& (CVisualSynanView::m_UnderlineFontForWords) );
+    if (bSubjOrPredk) {
+        pOldFont = pDC->SelectObject(m_bBold || m_bArtificialCreated ? 
+            &CVisualSynanView::m_BoldUnderlineFontForWords :
+            &CVisualSynanView::m_UnderlineFontForWords);
+    }
+    else if (m_bBold || m_bArtificialCreated) {
+        pOldFont = pDC->SelectObject(&CVisualSynanView::m_BoldFontForWords);
+    }
 
-	}
-	else
-		if( m_bBold ||  m_bArtificialCreated )
-		{
-			pOldFont = pDC->GetCurrentFont(); 
-			pDC->SelectObject(& (CVisualSynanView::m_BoldFontForWords) );
-		};
+    // Отрисовка подчеркивания для предикатов
+    if (((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk) {
+        CPen pen(PS_SOLID, 1, RGB(100, 100, 100));
+        CPen* pOldPen = pDC->SelectObject(&pen);
+        
+        pDC->MoveTo(m_WordRect.left, m_WordRect.bottom + 2 - iOffset);
+        pDC->LineTo(m_WordRect.right, m_WordRect.bottom + 2 - iOffset);
+        
+        pDC->SelectObject(pOldPen);
+    }
 
-	if( ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk )
-	{
-		CSize sz;
-		pDC->MoveTo(m_WordRect.left, m_WordRect.bottom + 2 - iOffset);
-		pDC->LineTo(m_WordRect.right, m_WordRect.bottom + 2 - iOffset);
+    // Отрисовка текста с тенью для улучшения читаемости
+    if (m_bBold) {
+        // Тень для жирного текста
+        COLORREF shadowColor = RGB(200, 200, 200);
+        pDC->SetTextColor(shadowColor);
+        pDC->TextOut(m_WordRect.left + 1, m_WordRect.top - iOffset + 1, m_strWord, m_strWord.GetLength());
+        pDC->SetTextColor(old_color);
+    }
 
-	}
-		
+    // Основной текст
+    pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
 
-	pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord,m_strWord.GetLength());
+    // Восстановление состояния DC
+    if (pOldFont) {
+        pDC->SelectObject(pOldFont);
+    }
+    pDC->SetTextColor(old_color);
+    pDC->SetBkMode(oldMode);
 
-	if( pOldFont )
-		pDC->SelectObject(pOldFont);
-
-	if( m_bInTermin || m_bArtificialCreated )
-		pDC->SetTextColor(old_color);
-
-
-	return TRUE;	
-} 
+    return TRUE;    
+}
 
 int CVisualWord::CalculateCoordinates(CDC* pDC,int iX, int iY)
 {
