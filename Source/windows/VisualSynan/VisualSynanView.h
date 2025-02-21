@@ -87,9 +87,11 @@ protected:
 	BOOL m_bFirsTime;
 	BOOL m_bMore;
 
-	
+	int m_nVScrollPos;  // Позиция вертикального скролла
 
-	
+	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
+
 // Generated message  functions
 protected:
 	int OnNeedText( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
@@ -99,7 +101,6 @@ protected:
 	afx_msg void OnRButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnFonts();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
-	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	afx_msg void OnViewTest();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()

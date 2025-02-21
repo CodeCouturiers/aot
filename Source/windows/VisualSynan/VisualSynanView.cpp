@@ -38,7 +38,7 @@ BEGIN_MESSAGE_MAP(CVisualSynanView, CScrollView)
 	ON_WM_RBUTTONDOWN()
 	ON_WM_SIZE()
 	ON_WM_VSCROLL()
-	ON_COMMAND(ID_VIEW_TEST, OnViewTest)
+	ON_WM_MOUSEWHEEL()
 	//}}AFX_MSG_MAP
 	// Standard printing commands
 	ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnNeedText)
@@ -67,6 +67,7 @@ CVisualSynanView::CVisualSynanView()
 	m_iStartSent = 0;
 	m_iStartLine = 0;
 	m_iOffset = 0;
+	m_nVScrollPos = 0;
 	SetScrollSizes(MM_TEXT, CSize(0,0));
 }
 
@@ -668,9 +669,59 @@ int CVisualSynanView::OnNeedText( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 
 void CVisualSynanView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar) 
 {
-	
-	CScrollView::OnVScroll(nSBCode, nPos, pScrollBar);
-
+    // Получаем информацию о скроллбаре
+    SCROLLINFO si;
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_ALL;
+    GetScrollInfo(SB_VERT, &si);
+    
+    // Текущая позиция скролла
+    int nCurPos = si.nPos;
+    int nPrevPos = nCurPos;
+    
+    // Определяем новую позицию в зависимости от действия
+    switch (nSBCode)
+    {
+    case SB_TOP:        // Прокрутка к началу
+        nCurPos = si.nMin;
+        break;
+        
+    case SB_BOTTOM:     // Прокрутка к концу
+        nCurPos = si.nMax;
+        break;
+        
+    case SB_LINEUP:     // Прокрутка на одну строку вверх
+        nCurPos -= 40;
+        break;
+        
+    case SB_LINEDOWN:   // Прокрутка на одну строку вниз
+        nCurPos += 40;
+        break;
+        
+    case SB_PAGEUP:     // Прокрутка на страницу вверх
+        nCurPos -= si.nPage;
+        break;
+        
+    case SB_PAGEDOWN:   // Прокрутка на страницу вниз
+        nCurPos += si.nPage;
+        break;
+        
+    case SB_THUMBTRACK: // Перетаскивание ползунка
+    case SB_THUMBPOSITION:
+        nCurPos = nPos;
+        break;
+    }
+    
+    // Ограничиваем позицию скролла
+    nCurPos = max(si.nMin, min(nCurPos, (int)si.nMax - (int)si.nPage + 1));
+    
+    // Если позиция изменилась - выполняем прокрутку
+    if (nCurPos != nPrevPos)
+    {
+        SetScrollPos(SB_VERT, nCurPos);
+        ScrollWindow(0, (nPrevPos - nCurPos));
+        UpdateWindow();
+    }
 }
 
 void CVisualSynanView::Reset()
@@ -687,6 +738,36 @@ void CVisualSynanView::OnBuildRels(CString& str)
 
 void CVisualSynanView::OnViewTest() 
 {
-	// TODO: Add your command handler code here
-	
+	// Реализация тестового метода
+	// Можно оставить пустым или добавить нужную функциональность
+}
+
+BOOL CVisualSynanView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+    // Получаем текущую позицию скролла
+    int nScrollPos = GetScrollPos(SB_VERT);
+    
+    // Настраиваем скорость скроллинга (можно регулировать множитель)
+    int nScrollInc = max(40, GetSystemMetrics(SM_CYHSCROLL) * 2);
+    
+    if (zDelta < 0)  // Прокрутка вниз
+        nScrollPos += nScrollInc;
+    else             // Прокрутка вверх
+        nScrollPos -= nScrollInc;
+    
+    // Ограничиваем позицию скролла
+    SCROLLINFO si;
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_ALL;
+    GetScrollInfo(SB_VERT, &si);
+    
+    nScrollPos = max(si.nMin, min(nScrollPos, (int)si.nMax - (int)si.nPage + 1));
+    
+    // Плавно прокручиваем к новой позиции
+    SetScrollPos(SB_VERT, nScrollPos);
+    ScrollWindow(0, (m_nVScrollPos - nScrollPos));
+    m_nVScrollPos = nScrollPos;
+    
+    UpdateWindow();
+    return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
 }
