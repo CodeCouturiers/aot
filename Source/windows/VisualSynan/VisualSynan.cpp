@@ -191,11 +191,44 @@ BOOL CVisualSynanApp::InitInstance()
         
         // Initialize Russian morphology
         OutputDebugString(_T("[VisualSynan] Loading Russian morphological dictionary...\n"));
-        GlobalLoadMorphHolder(morphRussian);
+        try {
+            GlobalLoadMorphHolder(morphRussian);
+            if (!GetMHolder(morphRussian).m_pLemmatizer) {
+                OutputDebugString(_T("[VisualSynan] Failed to load Russian morphological dictionary - lemmatizer is null!\n"));
+                AfxMessageBox(_T("Failed to load Russian morphological dictionary."), MB_ICONERROR);
+                return FALSE;
+            }
+        }
+        catch (const std::exception& e) {
+            CStringA errorMsg(e.what());
+            CString debugMsg;
+            debugMsg.Format(_T("[VisualSynan] Exception while loading Russian morphology: %S\n"), errorMsg);
+            OutputDebugString(debugMsg);
+            AfxMessageBox(_T("Failed to load Russian morphological dictionary."), MB_ICONERROR);
+            return FALSE;
+        }
 
+        // German morphology disabled for now
+        /*
         // Initialize German morphology
         OutputDebugString(_T("[VisualSynan] Loading German morphological dictionary...\n"));
-        GlobalLoadMorphHolder(morphGerman);
+        try {
+            GlobalLoadMorphHolder(morphGerman);
+            if (!GetMHolder(morphGerman).m_pLemmatizer) {
+                OutputDebugString(_T("[VisualSynan] Failed to load German morphological dictionary - lemmatizer is null!\n"));
+                AfxMessageBox(_T("Failed to load German morphological dictionary."), MB_ICONERROR);
+                return FALSE;
+            }
+        }
+        catch (const std::exception& e) {
+            CStringA errorMsg(e.what());
+            CString debugMsg;
+            debugMsg.Format(_T("[VisualSynan] Exception while loading German morphology: %S\n"), errorMsg);
+            OutputDebugString(debugMsg);
+            AfxMessageBox(_T("Failed to load German morphological dictionary."), MB_ICONERROR);
+            return FALSE;
+        }
+        */
 
         // Now initialize syntax
         OutputDebugString(_T("[VisualSynan] Creating syntax options...\n"));
@@ -205,18 +238,24 @@ BOOL CVisualSynanApp::InitInstance()
             return FALSE;
         }
 
+        // German syntax disabled
+        /*
         if (!Ger.m_Synan.CreateOptions(morphGerman)) {
             OutputDebugString(_T("[VisualSynan] Failed to create German syntax options!\n"));
             AfxMessageBox(_T("Failed to create German syntax options."), MB_ICONERROR);
             return FALSE;
         }
+        */
 
         // Initialize syntax processors
         OutputDebugString(_T("[VisualSynan] Initializing Russian syntax...\n"));
         Rus.m_Synan.InitializeProcesser();
 
+        // German syntax processor disabled
+        /*
         OutputDebugString(_T("[VisualSynan] Initializing German syntax...\n"));
         Ger.m_Synan.InitializeProcesser();
+        */
 
         // Load syntax rules for the selected language
         OutputDebugString(_T("[VisualSynan] Loading syntax rules...\n"));
