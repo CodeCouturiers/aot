@@ -26,6 +26,8 @@ public:
 	CSyntaxHolder& GetHolder();
 	CDocTemplate* GetSynTemplate() { return m_pSynTemplate; }
 
+	afx_msg void OnAppExit();
+
 protected:
 	CDocTemplate* m_pSynTemplate;
 

@@ -73,6 +73,7 @@ protected:
 	afx_msg void OnBuildFromFile();
 	afx_msg void OnReinitializeSyntax();
 	afx_msg LRESULT OnProcessTxtFile(WPARAM, LPARAM);
+	afx_msg void OnClose();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 

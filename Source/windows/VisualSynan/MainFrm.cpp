@@ -24,6 +24,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CMDIFrameWnd)
 	ON_COMMAND(ID_FILE_OPEN_BUILDCLAUSESFROMFILE, OnBuildFromFile)
 	
 	ON_MESSAGE(ID_PROCESS_TXT_FILE, OnProcessTxtFile)
+	ON_WM_CLOSE()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -188,5 +189,22 @@ bool CMainFrame::LoadSyntaxByLanguage(MorphLanguageEnum t)
 CString FromRMLEncode(std::string s)
 {
 	return utf8_to_wstring(s).c_str();
+}
+
+void CMainFrame::OnClose()
+{
+	OutputDebugString(_T("[VisualSynan] MainFrame OnClose called\n"));
+
+	// Закрыть все дочерние окна
+	MDINext();
+	while (MDIGetActive()) {
+		MDIGetActive()->SendMessage(WM_CLOSE);
+		MDINext();
+	}
+
+	// Завершить приложение
+	AfxGetApp()->PostThreadMessage(WM_QUIT, 0, 0);
+	
+	CMDIFrameWnd::OnClose();
 }
 

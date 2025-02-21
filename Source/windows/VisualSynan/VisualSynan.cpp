@@ -68,6 +68,7 @@ BEGIN_MESSAGE_MAP(CVisualSynanApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
 	ON_COMMAND(ID_FILE_NEW, OnSynFileNew)
 	ON_COMMAND(ID_FILE_OPEN, CWinApp::OnFileOpen)
+	ON_COMMAND(ID_APP_EXIT, OnAppExit)
 	//}}AFX_MSG_MAP
 	// Standard file based document commands
 END_MESSAGE_MAP()
@@ -531,12 +532,73 @@ void CVisualSynanApp::OnAppAbout()
 /////////////////////////////////////////////////////////////////////////////
 // CVisualSynanApp message handlers
 
+void CVisualSynanApp::OnAppExit()
+{
+    OutputDebugString(_T("[VisualSynan] Starting application exit\n"));
+
+    // Закрыть все документы и главное окно
+    if (m_pMainWnd) {
+        // Сначала закроем все MDI-окна
+        CMainFrame* pFrame = (CMainFrame*)m_pMainWnd;
+        pFrame->MDINext();
+        while (pFrame->MDIGetActive()) {
+            pFrame->MDIGetActive()->SendMessage(WM_CLOSE);
+            pFrame->MDINext();
+        }
+
+        // Теперь закроем главное окно
+        m_pMainWnd->PostMessage(WM_CLOSE);
+    }
+
+    // Принудительно завершить процесс, если окна не закрылись
+    ::PostThreadMessage(GetCurrentThreadId(), WM_QUIT, 0, 0);
+}
+
 int CVisualSynanApp::ExitInstance() 
 {
-	Rus.ClearHolder();
-	Ger.ClearHolder();
-	CloseHandle(CWaitThread::m_hEventKill);
-	return CWinApp::ExitInstance();
+    OutputDebugString(_T("[VisualSynan] Starting ExitInstance\n"));
+
+    // Signal any waiting threads to terminate
+    if (CWaitThread::m_hEventKill) {
+        SetEvent(CWaitThread::m_hEventKill);
+        Sleep(100); // Give threads time to terminate
+    }
+
+    // Terminate any remaining threads
+    for (int i = 0; i < 10; i++) { // Try a few times
+        DWORD result = WaitForSingleObject(CWaitThread::m_hEventKill, 100);
+        if (result == WAIT_OBJECT_0) {
+            break;
+        }
+    }
+
+    // Clean up holders
+    try {
+        OutputDebugString(_T("[VisualSynan] Cleaning up syntax holders\n"));
+        Rus.ClearHolder();
+        Ger.ClearHolder();
+    }
+    catch (...) {
+        OutputDebugString(_T("[VisualSynan] Error during holder cleanup\n"));
+    }
+
+    // Close event handle
+    if (CWaitThread::m_hEventKill) {
+        OutputDebugString(_T("[VisualSynan] Closing event handle\n"));
+        CloseHandle(CWaitThread::m_hEventKill);
+        CWaitThread::m_hEventKill = NULL;
+    }
+
+    // Uninitialize COM
+    OutputDebugString(_T("[VisualSynan] Uninitializing COM\n"));
+    CoUninitialize();
+
+    OutputDebugString(_T("[VisualSynan] ExitInstance completed\n"));
+
+    // Принудительно завершить процесс
+    TerminateProcess(GetCurrentProcess(), 0);
+    
+    return CWinApp::ExitInstance();
 }
 
 BOOL CVisualSynanApp::PreTranslateMessage(MSG* pMsg)
