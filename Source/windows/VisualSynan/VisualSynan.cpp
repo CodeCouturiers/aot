@@ -338,13 +338,36 @@ BOOL CVisualSynanApp::InitInstance()
                 AfxMessageBox(_T("Failed to load Russian morphological dictionary."), MB_ICONERROR);
                 return FALSE;
             }
+
+            // Now initialize syntax using the already loaded morphology
+            OutputDebugString(_T("[VisualSynan] Creating syntax options...\n"));
+            if (!Rus.m_Synan.CreateOptions(morphRussian)) {
+                OutputDebugString(_T("[VisualSynan] Failed to create Russian syntax options!\n"));
+                AfxMessageBox(_T("Failed to create Russian syntax options."), MB_ICONERROR);
+                return FALSE;
+            }
+
+            // Initialize syntax processor without reloading morphology
+            OutputDebugString(_T("[VisualSynan] Initializing Russian syntax...\n"));
+            Rus.m_Synan.SetLemmatizer(GetMHolder(morphRussian).m_pLemmatizer);
+            Rus.m_Synan.InitializeProcesser();
+
+            // Load syntax rules for the selected language
+            OutputDebugString(_T("[VisualSynan] Loading syntax rules...\n"));
+            GetHolder().LoadSyntax();
+            OutputDebugString(_T("[VisualSynan] Morphology initialized successfully\n"));
         }
         catch (const std::exception& e) {
             CStringA errorMsg(e.what());
             CString debugMsg;
-            debugMsg.Format(_T("[VisualSynan] Exception while loading Russian morphology: %S\n"), errorMsg);
+            debugMsg.Format(_T("[VisualSynan] Exception while loading morphology: %S\n"), errorMsg);
             OutputDebugString(debugMsg);
-            AfxMessageBox(_T("Failed to load Russian morphological dictionary."), MB_ICONERROR);
+            AfxMessageBox(_T("Error initializing morphology. Please check log for details."), MB_ICONERROR);
+            return FALSE;
+        }
+        catch (...) {
+            OutputDebugString(_T("[VisualSynan] Unknown exception while loading morphology!\n"));
+            AfxMessageBox(_T("Unexpected error while initializing morphology."), MB_ICONERROR);
             return FALSE;
         }
 
@@ -370,14 +393,6 @@ BOOL CVisualSynanApp::InitInstance()
         }
         */
 
-        // Now initialize syntax
-        OutputDebugString(_T("[VisualSynan] Creating syntax options...\n"));
-        if (!Rus.m_Synan.CreateOptions(morphRussian)) {
-            OutputDebugString(_T("[VisualSynan] Failed to create Russian syntax options!\n"));
-            AfxMessageBox(_T("Failed to create Russian syntax options."), MB_ICONERROR);
-            return FALSE;
-        }
-
         // German syntax disabled
         /*
         if (!Ger.m_Synan.CreateOptions(morphGerman)) {
@@ -387,20 +402,63 @@ BOOL CVisualSynanApp::InitInstance()
         }
         */
 
-        // Initialize syntax processors
-        OutputDebugString(_T("[VisualSynan] Initializing Russian syntax...\n"));
-        Rus.m_Synan.InitializeProcesser();
-
         // German syntax processor disabled
         /*
         OutputDebugString(_T("[VisualSynan] Initializing German syntax...\n"));
         Ger.m_Synan.InitializeProcesser();
         */
 
-        // Load syntax rules for the selected language
-        OutputDebugString(_T("[VisualSynan] Loading syntax rules...\n"));
-        GetHolder().LoadSyntax();
-        OutputDebugString(_T("[VisualSynan] Morphology initialized successfully\n"));
+        CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL);
+        OutputDebugString(_T("[VisualSynan] Wait thread event created\n"));
+
+        CoInitialize(NULL);
+        OutputDebugString(_T("[VisualSynan] COM initialized\n"));
+
+        AfxEnableControlContainer();
+        OutputDebugString(_T("[VisualSynan] Control container enabled\n"));
+
+        // Change the registry key under which our settings are stored.
+        SetRegistryKey(_T("Local AppWizard-Generated Applications"));
+        OutputDebugString(_T("[VisualSynan] Registry key set\n"));
+
+        LoadStdProfileSettings();
+        OutputDebugString(_T("[VisualSynan] Profile settings loaded\n"));
+
+        // Register document templates
+        OutputDebugString(_T("[VisualSynan] Creating document template...\n"));
+        m_pSynTemplate = new CMultiDocTemplate(
+            IDR_VISUALTYPE,
+            RUNTIME_CLASS(CVisualSynanDoc),
+            RUNTIME_CLASS(CChildFrame),
+            RUNTIME_CLASS(CVisualSynanView));
+        
+        if (!m_pSynTemplate) {
+            OutputDebugString(_T("[VisualSynan] Failed to create document template!\n"));
+            return FALSE;
+        }
+        
+        AddDocTemplate(m_pSynTemplate);
+        OutputDebugString(_T("[VisualSynan] Document template created and added\n"));
+
+        // Show and update main window
+        OutputDebugString(_T("[VisualSynan] Showing main window...\n"));
+        pMainFrame->ShowWindow(SW_MAXIMIZE);
+        pMainFrame->UpdateWindow();
+        OutputDebugString(_T("[VisualSynan] Main window shown and updated\n"));
+
+        // Create initial document
+        OutputDebugString(_T("[VisualSynan] Creating initial document...\n"));
+        OnSynFileNew();
+        OutputDebugString(_T("[VisualSynan] Initial document created\n"));
+
+        // Double check main window pointer before returning
+        if (!m_pMainWnd) {
+            OutputDebugString(_T("[VisualSynan] Critical Error: m_pMainWnd is NULL at end of InitInstance!\n"));
+            return FALSE;
+        }
+
+        OutputDebugString(_T("[VisualSynan] InitInstance completed successfully\n"));
+        return TRUE;
     }
     catch (const std::exception& e) {
         CStringA errorMsg(e.what());
@@ -415,58 +473,6 @@ BOOL CVisualSynanApp::InitInstance()
         AfxMessageBox(_T("Unexpected error while initializing morphology."), MB_ICONERROR);
         return FALSE;
     }
-
-    CWaitThread::m_hEventKill = CreateEvent(NULL, FALSE, FALSE, NULL);
-    OutputDebugString(_T("[VisualSynan] Wait thread event created\n"));
-
-    CoInitialize(NULL);
-    OutputDebugString(_T("[VisualSynan] COM initialized\n"));
-
-    AfxEnableControlContainer();
-    OutputDebugString(_T("[VisualSynan] Control container enabled\n"));
-
-    // Change the registry key under which our settings are stored.
-    SetRegistryKey(_T("Local AppWizard-Generated Applications"));
-    OutputDebugString(_T("[VisualSynan] Registry key set\n"));
-
-    LoadStdProfileSettings();
-    OutputDebugString(_T("[VisualSynan] Profile settings loaded\n"));
-
-    // Register document templates
-    OutputDebugString(_T("[VisualSynan] Creating document template...\n"));
-    m_pSynTemplate = new CMultiDocTemplate(
-        IDR_VISUALTYPE,
-        RUNTIME_CLASS(CVisualSynanDoc),
-        RUNTIME_CLASS(CChildFrame),
-        RUNTIME_CLASS(CVisualSynanView));
-    
-    if (!m_pSynTemplate) {
-        OutputDebugString(_T("[VisualSynan] Failed to create document template!\n"));
-        return FALSE;
-    }
-    
-    AddDocTemplate(m_pSynTemplate);
-    OutputDebugString(_T("[VisualSynan] Document template created and added\n"));
-
-    // Show and update main window
-    OutputDebugString(_T("[VisualSynan] Showing main window...\n"));
-    pMainFrame->ShowWindow(SW_MAXIMIZE);
-    pMainFrame->UpdateWindow();
-    OutputDebugString(_T("[VisualSynan] Main window shown and updated\n"));
-
-    // Create initial document
-    OutputDebugString(_T("[VisualSynan] Creating initial document...\n"));
-    OnSynFileNew();
-    OutputDebugString(_T("[VisualSynan] Initial document created\n"));
-
-    // Double check main window pointer before returning
-    if (!m_pMainWnd) {
-        OutputDebugString(_T("[VisualSynan] Critical Error: m_pMainWnd is NULL at end of InitInstance!\n"));
-        return FALSE;
-    }
-
-    OutputDebugString(_T("[VisualSynan] InitInstance completed successfully\n"));
-    return TRUE;
 }
 
 /////////////////////////////////////////////////////////////////////////////
