@@ -4,6 +4,9 @@
 #include "morph_dict/agramtab/GerGramTab.h"
 #include "morph_dict/agramtab/agramtab.h"
 #include "morph_dict/lemmatizer_base_lib/Lemmatizers.h"
+#include <Windows.h>
+#include <tchar.h>
+#include <debugapi.h>
 
 
 CLemWord::CLemWord(MorphLanguageEnum l)
@@ -84,15 +87,32 @@ const std::string& CLemWord::GetWord() const
 
 void CLemWord::CreateDefaultHomonym(short oborot_no)
 {
-	if (GetHomonymsCount() > 0 || m_bSpace) {
+	// Only return early if it's a space - we want to ensure non-space tokens always get a homonym
+	if (m_bSpace) {
 		return;
 	}
+
+	// If we already have homonyms, no need to create a default one
+	if (GetHomonymsCount() > 0) {
+		return;
+	}
+
+	OutputDebugStringW(L"[LemWord] Creating default homonym for word: ");
+	OutputDebugStringA(m_strWord.c_str());
+	OutputDebugStringW(L"\n");
+
 	CHomonym* h = AddNewHomonym();
 	if (!HasDes(OPun)) {
 		h->SetPredictedWord("??");
 	}
 	h->SetLemma(m_strUpperWord);
 	InitLevelSpecific(oborot_no, h);
+
+	OutputDebugStringW(L"[LemWord] Created default homonym, new count: ");
+	wchar_t buf[32];
+	_snwprintf_s(buf, _countof(buf), L"%d", (int)GetHomonymsCount());
+	OutputDebugStringW(buf);
+	OutputDebugStringW(L"\n");
 }
 
 void CLemWord::InitLevelSpecific(short oborot_no, CHomonym* pHom)

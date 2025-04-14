@@ -18,7 +18,9 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 {
 	auto lemmatizer = GetMHolder(m_Language).m_pLemmatizer;
 	if (!lemmatizer) {
-		OutputDebugString(_T("[VisualSynan] Error: Lemmatizer is null in CLemmatizedText::CreateFromTokemized\n"));
+#ifdef _DEBUG
+		OutputDebugStringW(L"[LemmatizedText] Error: Lemmatizer is null in CLemmatizedText::CreateFromTokemized\n");
+#endif
 		throw std::runtime_error("Lemmatizer is null");
 	}
 
@@ -52,8 +54,21 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 		else if (m_Language == token.GetTokenLanguage())
 		{
 			std::string word_s8 = token.GetToken();
+#ifdef _DEBUG
+			OutputDebugStringW(L"[LemmatizedText] Attempting to lemmatize word: ");
+			OutputDebugStringA(word_s8.c_str());
+			OutputDebugStringW(L"\n");
+#endif
+
 			std::vector<CFormInfo> paradigms;
 			lemmatizer->CreateParadigmCollection(false, word_s8, !token.HasDes(OLw), true, paradigms);
+			
+			if (paradigms.empty()) {
+#ifdef _DEBUG
+				OutputDebugStringW(L"[LemmatizedText] No paradigms found for word\n");
+#endif
+			}
+
 			for(auto& p: paradigms)
 			{
 				CHomonym* h = word.AddNewHomonym();
@@ -82,6 +97,20 @@ bool CLemmatizedText::SaveToFile(std::string filename) const
 		std::ofstream outp(filename.c_str(), std::ios::binary);
 		if (!outp.is_open()) return false;
 		for (auto& w : m_LemWords) {
+			if (!(w.m_bSpace || w.GetHomonymsCount() > 0)) {
+#ifdef _DEBUG
+				OutputDebugStringW(L"[LemmatizedText] Assertion will fail for word: ");
+				OutputDebugStringA(w.m_strWord.c_str());
+				OutputDebugStringW(L"\n");
+				OutputDebugStringW(L"[LemmatizedText] m_bSpace=");
+				OutputDebugStringW(w.m_bSpace ? L"true" : L"false");
+				OutputDebugStringW(L" GetHomonymsCount()=");
+				wchar_t buf[32];
+				_snwprintf_s(buf, _countof(buf), L"%d", (int)w.GetHomonymsCount());
+				OutputDebugStringW(buf);
+				OutputDebugStringW(L"\n");
+#endif
+			}
 			assert(w.m_bSpace || w.GetHomonymsCount() > 0);
 			for (size_t i = 0; i < w.GetHomonymsCount(); ++i) {
 				outp << w.GetDebugString(w.GetHomonym(i), i == 0) << "\n";

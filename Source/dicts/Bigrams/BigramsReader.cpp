@@ -31,9 +31,9 @@ class CBigrams {
     FILE *m_Bigrams;
     FILE *m_BigramsRev;
     // РїРѕРєР° РІС‹С‡РёСЃР»СЏРµРј С‚РѕР»СЊРєРѕ РєРѕРЅС‚Р°РєС‚РЅС‹Рµ Р±РёРіСЂР°РјРјС‹,
-    // m_CorpusSize РІС‹С‡РёСЃР»СЏСЋС‚СЃСЏ СЃСѓРјРјРёСЂРѕРІР°РЅРёРµРј РІСЃРµС… Р±РёРіСЂР°РјРј РјРёРЅСѓСЃ РєРѕР»-РІРѕ РїСЂРµРґР»РѕР¶РµРЅРёР№
+    // m_CorpusSize РІС‹С‡РёСЃР»СЏСЋС‚СЃСЏ СЃСўРјРёСЂРѕРІР°РЅРёРµРј РІСЃРµС… Р±РёРіСЂР°РјРј РјРёРЅСўСЃ РєРѕР»-РІРѕ РїСЂРµРґР»РѕР¶РµРЅРёР№
     // (РєРѕР»-РІРѕ РїСЂРµРґР»РѕР¶РµРЅРёР№ РјРѕР¶РЅРѕ РѕРїСѓСЃС‚РёС‚СЊ), Р° РїРѕС‚РѕРј РґР»РёРЅСѓ РєРѕСЂРїСѓСЃР°
-    // С‡Р°СЃС‚РѕС‚С‹ РѕС‚РґРµР»СЊРЅС‹С… СЃР»РѕРІ Р»СѓС‡С€Рµ РІСЃРµРіРѕ Р±СѓРґРµС‚ Р·Р°РґР°РІР°С‚СЊ  РѕС‚РґРµР»СЊРЅРѕ.
+    // С‡Р°СЃС‚РѕС‚С‹ РѕС‚РґРµР»СЊРЅС‹С… СЃР»РѕРІ Р»СѓС‡С€Рµ РІСЃРµРіРѕ Р±СѓРґРµС‚ Р·РґР°РІР°С‚СЊ  РѕС‚РґРµР»СЊРЅРѕ.
 
 
 public:
@@ -43,7 +43,7 @@ public:
 
     ~CBigrams();
 
-    void Initialize(std::string BigramsFileName);
+    void Initialize(const std::string& path);
 
     std::vector<CBigramAndFreq> GetBigrams(std::string Word, int MinBigramsFreq, bool bDirectFile, size_t &WordFreq);
 };
@@ -76,15 +76,17 @@ CBigrams::~CBigrams() {
 }
 
 
-void CBigrams::Initialize(std::string path) {
+void CBigrams::Initialize(const std::string& path) {
     m_Word2Infos.clear();
     m_CorpusSize = 0;
 
-    std::string IndexFile = fs::path(path) / "bigrams.txt.wrd_idx";
-    LOGI << "load " << IndexFile;
-    FILE *fp = fopen(IndexFile.c_str(), "r");
+    std::string word_idx_path = (fs::path(path) / "bigrams.txt.wrd_idx").string();
+    std::string bigrams_path = (fs::path(path) / "bigrams.txt.gz").string();
+    std::string unigrams_path = (fs::path(path) / "unigrams.txt").string();
+    LOGI << "load " << word_idx_path;
+    FILE *fp = fopen(word_idx_path.c_str(), "r");
     if (!fp) {
-        throw CExpc("Cannot open %s", IndexFile.c_str());
+        throw CExpc("Cannot open %s", word_idx_path.c_str());
     }
     char buffer[1000];
     while (fgets(buffer, 1000, fp)) {
@@ -95,7 +97,7 @@ void CBigrams::Initialize(std::string path) {
                    &I.m_FileOffset1, &I.m_FileLen1,
                    &I.m_FileOffset2, &I.m_FileLen2) != 6) {
             fclose(fp);
-            throw CExpc ("Bad format in  %s, line %s", IndexFile.c_str(), word);
+            throw CExpc ("Bad format in  %s, line %s", word_idx_path.c_str(), word);
         }
         I.m_Word = word;
         m_Word2Infos.push_back(I);
@@ -104,7 +106,7 @@ void CBigrams::Initialize(std::string path) {
     fclose(fp);
     if (m_Bigrams) fclose(m_Bigrams);
 
-    std::string Bin1File = fs::path(path) / "bigrams.txt.bin1";
+    std::string Bin1File = (fs::path(path) / "bigrams.txt.bin1").string();
     LOGI << "  open " <<  Bin1File;
     m_Bigrams = fopen(Bin1File.c_str(), "rb");
     if (!m_Bigrams) {
@@ -113,7 +115,7 @@ void CBigrams::Initialize(std::string path) {
 
 
     if (m_BigramsRev) fclose(m_BigramsRev);
-    std::string Bin2File = fs::path(path) / "bigrams.txt.bin2";
+    std::string Bin2File = (fs::path(path) / "bigrams.txt.bin2").string();
     LOGI << "  open " <<  Bin2File;
     m_BigramsRev = fopen(Bin2File.c_str(), "rb");
     if (!m_BigramsRev) {
