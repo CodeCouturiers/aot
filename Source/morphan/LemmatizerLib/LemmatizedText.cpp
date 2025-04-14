@@ -6,7 +6,101 @@
 #include <Windows.h>
 #include <debugapi.h>
 #include <tchar.h>
+#include <unordered_map>
 
+// Helper function to fix encoding issues in text, especially double-encoded Cyrillic
+std::string fixEncodingIssues(const std::string& text, MorphLanguageEnum language) {
+	// Check if the text has potential encoding issues
+	bool containsDoubleEncodedCyrillic = false;
+	bool containsNonASCII = false;
+	
+	// Check for non-ASCII characters and potential encoding issues
+	for (size_t i = 0; i < text.length(); ++i) {
+		unsigned char c = static_cast<unsigned char>(text[i]);
+		if (c > 127) {
+			containsNonASCII = true;
+			break;
+		}
+	}
+	
+	if (!containsNonASCII) {
+		return text; // No encoding issues with ASCII-only text
+	}
+	
+	// Check for common double-encoded Cyrillic patterns
+	// These patterns appear when UTF-8 Cyrillic is incorrectly interpreted as Windows-1251
+	const std::vector<std::string> patterns = {
+		R"(Р°)", R"(Р±)", R"(РІ)", R"(Рі)", R"(Рґ)", R"(Рµ)", R"(С')", R"(Р¶)", R"(Р·)", R"(Рё)", 
+		R"(Р№)", R"(Рє)", R"(Р»)", R"(Рј)", R"(РЅ)", R"(Рѕ)", R"(Рї)", R"(СЂ)", R"(СЃ)", R"(С‚)", 
+		R"(Сѓ)", R"(С„)", R"(С…)", R"(С†)", R"(С‡)", R"(С€)", R"(С‰)", R"(СЉ)", R"(С‹)", R"(СЊ)", 
+		R"(СЌ)", R"(СЋ)", R"(СЏ)"
+	};
+	
+	for (const auto& pattern : patterns) {
+		if (text.find(pattern) != std::string::npos) {
+			containsDoubleEncodedCyrillic = true;
+			break;
+		}
+	}
+	
+	// If no specific encoding issue detected, return original
+	if (!containsDoubleEncodedCyrillic) {
+		return text;
+	}
+	
+	// Known patterns of double-encoded Cyrillic and their Latin/Cyrillic equivalents
+	// This maps common double-encoded sequences back to original characters
+	static const std::unordered_map<std::string, std::string> cyrillicMap = {
+		// lowercase Russian letters
+		{R"(Р°)", "а"}, {R"(Р±)", "б"}, {R"(РІ)", "в"}, {R"(Рі)", "г"}, 
+		{R"(Рґ)", "д"}, {R"(Рµ)", "е"}, {R"(С')", "ё"}, {R"(Р¶)", "ж"}, 
+		{R"(Р·)", "з"}, {R"(Рё)", "и"}, {R"(Р№)", "й"}, {R"(Рє)", "к"}, 
+		{R"(Р»)", "л"}, {R"(Рј)", "м"}, {R"(РЅ)", "н"}, {R"(Рѕ)", "о"}, 
+		{R"(Рї)", "п"}, {R"(СЂ)", "р"}, {R"(СЃ)", "с"}, {R"(С‚)", "т"}, 
+		{R"(Сѓ)", "у"}, {R"(С„)", "ф"}, {R"(С…)", "х"}, {R"(С†)", "ц"}, 
+		{R"(С‡)", "ч"}, {R"(С€)", "ш"}, {R"(С‰)", "щ"}, {R"(СЉ)", "ъ"}, 
+		{R"(С‹)", "ы"}, {R"(СЊ)", "ь"}, {R"(СЌ)", "э"}, {R"(СЋ)", "ю"}, 
+		{R"(СЏ)", "я"},
+		
+		// uppercase Russian letters
+		{R"(РђР°)", "А"}, {R"(Р'Р±)", "Б"}, {R"(Р'РІ)", "В"}, {R"(Р"Рі)", "Г"}, 
+		{R"(Р"Рґ)", "Д"}, {R"(Р•Рµ)", "Е"}, {R"(РЃС')", "Ё"}, {R"(Р–Р¶)", "Ж"}, 
+		{R"(Р—Р·)", "З"}, {R"(РРё)", "И"}, {R"(Р™Р№)", "Й"}, {R"(РљРє)", "К"}, 
+		{R"(Р›Р»)", "Л"}, {R"(РњРј)", "М"}, {R"(РќРЅ)", "Н"}, {R"(РћРѕ)", "О"}, 
+		{R"(РџРї)", "П"}, {R"(Р РЂ)", "Р"}, {R"(РЎСЃ)", "С"}, {R"(РўС‚)", "Т"}, 
+		{R"(РЈСѓ)", "У"}, {R"(Р¤С„)", "Ф"}, {R"(РҐС…)", "Х"}, {R"(Р¦С†)", "Ц"}, 
+		{R"(Р§С‡)", "Ч"}, {R"(РЁС€)", "Ш"}, {R"(Р©С‰)", "Щ"}, {R"(РЄСљ)", "Ъ"}, 
+		{R"(Р«С‹)", "Ы"}, {R"(Р¬СЊ)", "Ь"}, {R"(РЌСЌ)", "Э"}, {R"(РЋСЋ)", "Ю"}, 
+		{R"(РЇСЏ)", "Я"}
+	};
+	
+	std::string result;
+	size_t pos = 0;
+	
+	// Process the string looking for patterns
+	while (pos < text.length()) {
+		bool patternFound = false;
+		
+		// Try to match double-encoded patterns
+		for (const auto& [pattern, replacement] : cyrillicMap) {
+			if (pos + pattern.length() <= text.length() && 
+				text.substr(pos, pattern.length()) == pattern) {
+				result += replacement;
+				pos += pattern.length();
+				patternFound = true;
+				break;
+			}
+		}
+		
+		// If no pattern found, keep the original character
+		if (!patternFound) {
+			result += text[pos++];
+		}
+	}
+	
+	// If result is empty (which shouldn't happen), return original
+	return result.empty() ? text : result;
+}
 
 CLemmatizedText::CLemmatizedText(MorphLanguageEnum l)
 {
@@ -60,6 +154,15 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 			OutputDebugStringW(L"\n");
 #endif
 
+			// Check and fix encoding issues
+			std::string fixedWord = fixEncodingIssues(word_s8, m_Language);
+			bool encodingFixed = (fixedWord != word_s8);
+			
+			if (encodingFixed) {
+				PLOGW << "Fixed encoding for word: " << word_s8 << " -> " << fixedWord;
+				word_s8 = fixedWord;
+			}
+
 			// Skip lemmatization if the word contains invalid UTF-8 characters
 			bool hasInvalidCharacters = false;
 			for (unsigned char c : word_s8) {
@@ -88,6 +191,13 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 					word.InitLevelSpecific(oborot_no, h);
 				}
 			}
+			
+			// If encoding was fixed, update the word's strings with the fixed encoding
+			if (encodingFixed && !word.m_bSpace && word.GetHomonymsCount() == 0) {
+				word.m_strWord = fixedWord;
+				word.m_strUpperWord = fixedWord;
+				PLOGW << "Updated word with fixed encoding: " << fixedWord;
+			}
 		}
 		
 		// Ensure non-space tokens always have at least one homonym
@@ -101,201 +211,13 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 			// Log potential encoding issues for debugging
 			PLOGW << "Forcing default homonym for word: " << word.m_strWord;
 			
-			if (word.m_strWord.empty()) {
-				PLOGE << "Empty word encountered, skipping homonym creation";
-				m_LemWords.push_back(word);
-				continue;
-			}
-			
-			// Check if the word contains any non-ASCII or UTF-8 encoding issues
-			bool isValidUtf8 = true;
-			bool containsNonASCII = false;
-			
-			for (size_t i = 0; i < word.m_strWord.length(); ++i) {
-				unsigned char c = static_cast<unsigned char>(word.m_strWord[i]);
-				
-				// Check for non-ASCII
-				if (c > 127) {
-					containsNonASCII = true;
-					
-					// Proper UTF-8 sequence validation
-					if (c >= 0xC0 && c <= 0xDF) {
-						// 2-byte sequence
-						if (i + 1 >= word.m_strWord.length() || 
-						   (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80) {
-							isValidUtf8 = false;
-							break;
-						}
-						i += 1; // Skip the next byte as it's part of this character
-					} else if (c >= 0xE0 && c <= 0xEF) {
-						// 3-byte sequence
-						if (i + 2 >= word.m_strWord.length() || 
-						   (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80 ||
-						   (static_cast<unsigned char>(word.m_strWord[i+2]) & 0xC0) != 0x80) {
-							isValidUtf8 = false;
-							break;
-						}
-						i += 2; // Skip the next 2 bytes
-					} else if (c >= 0xF0 && c <= 0xF7) {
-						// 4-byte sequence
-						if (i + 3 >= word.m_strWord.length() || 
-						   (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80 ||
-						   (static_cast<unsigned char>(word.m_strWord[i+2]) & 0xC0) != 0x80 ||
-						   (static_cast<unsigned char>(word.m_strWord[i+3]) & 0xC0) != 0x80) {
-							isValidUtf8 = false;
-							break;
-						}
-						i += 3; // Skip the next 3 bytes
-					} else {
-						// Invalid leading byte
-						isValidUtf8 = false;
-						break;
-					}
-				}
-			}
-			
-			if (!isValidUtf8) {
-				PLOGE << "Invalid UTF-8 sequence in word: " << word.m_strWord;
-			}
-			
-			// If not valid UTF-8, try to clean the string
-			std::string cleanWord = word.m_strWord;
-			if (!isValidUtf8 || containsNonASCII) {
-				PLOGW << "Attempting to sanitize word with encoding issues: " << word.m_strWord;
-				
-				// Improved detection for double-encoded Cyrillic text patterns
-				bool containsDoubleEncodedCyrillic = false;
-				
-				// Check for common double-encoded Cyrillic patterns
-				// These patterns appear when UTF-8 Cyrillic is incorrectly interpreted as Windows-1251
-				for (const auto& pattern : {
-					"РІ", "СЃ", "Р°", "Рѕ", "Рµ", "Рё", "Рј", "РЅ", "СЂ", "С‚", 
-					"Рє", "Р»", "Рґ", "Рї", "Сѓ", "С„", "С…", "РЁ", "С‰", "СЊ", "СЏ"
-				}) {
-					if (word.m_strWord.find(pattern) != std::string::npos) {
-						containsDoubleEncodedCyrillic = true;
-						break;
-					}
-				}
-				
-				// For double-encoded Cyrillic, attempt transliteration
-				if (containsDoubleEncodedCyrillic) {
-					PLOGW << "Detected double-encoded Cyrillic text: " << word.m_strWord;
-					
-					// Known patterns of double-encoded Cyrillic and their Latin equivalents
-					// Table maps common double-encoded sequences to their Latin equivalents
-					static const std::unordered_map<std::string, char> cyrillicPatterns = {
-						{"Р°", 'a'}, {"Р±", 'b'}, {"РІ", 'v'}, {"Рі", 'g'}, 
-						{"Рґ", 'd'}, {"Рµ", 'e'}, {"С'", 'e'}, {"Р¶", 'z'}, 
-						{"Р·", 'z'}, {"Рё", 'i'}, {"Р№", 'i'}, {"Рє", 'k'}, 
-						{"Р»", 'l'}, {"Рј", 'm'}, {"РЅ", 'n'}, {"Рѕ", 'o'}, 
-						{"Рї", 'p'}, {"СЂ", 'r'}, {"СЃ", 's'}, {"С‚", 't'}, 
-						{"Сѓ", 'u'}, {"С„", 'f'}, {"С…", 'h'}, {"С†", 'c'}, 
-						{"С‡", 'c'}, {"С€", 's'}, {"С‰", 's'}, {"СЉ", '_'}, 
-						{"С‹", 'y'}, {"СЊ", '_'}, {"СЌ", 'e'}, {"СЋ", 'u'}, 
-						{"СЏ", 'y'}
-					};
-					
-					cleanWord = "";
-					bool foundPattern = false;
-					
-					// Process the word character by character
-					for (size_t i = 0; i < word.m_strWord.length(); i++) {
-						bool patternFound = false;
-						
-						// Try to match double-encoded patterns
-						for (const auto& [pattern, replacement] : cyrillicPatterns) {
-							if (i + pattern.length() <= word.m_strWord.length() && 
-								word.m_strWord.substr(i, pattern.length()) == pattern) {
-								cleanWord.push_back(replacement);
-								i += pattern.length() - 1; // Skip processed characters
-								patternFound = true;
-								foundPattern = true;
-								break;
-							}
-						}
-						
-						// If no pattern found, keep ASCII characters and replace others
-						if (!patternFound) {
-							unsigned char c = static_cast<unsigned char>(word.m_strWord[i]);
-							if (c < 128) {
-								cleanWord.push_back(c);
-							} else {
-								cleanWord.push_back('_');
-							}
-						}
-					}
-					
-					// If no patterns were found, fall back to simple cleaning
-					if (!foundPattern) {
-						cleanWord = "";
-						for (unsigned char c : word.m_strWord) {
-							if (c < 128) {
-								cleanWord.push_back(c);
-							} else {
-								cleanWord.push_back('_');
-							}
-						}
-					}
-				} else {
-					// Special case for valid Cyrillic UTF-8 that was incorrectly detected as invalid
-					// This handles standard Cyrillic characters that might trigger the validator but are valid
-					if (containsNonASCII && m_Language == morphRussian) {
-						// Check if the word appears to be Cyrillic but was flagged as invalid
-						bool potentiallyCyrillic = false;
-						for (size_t i = 0; i < word.m_strWord.length(); i++) {
-							unsigned char c = static_cast<unsigned char>(word.m_strWord[i]);
-							// Check for Cyrillic range in UTF-8 encoding
-							if ((c == 0xD0 || c == 0xD1) && i + 1 < word.m_strWord.length()) {
-								unsigned char next = static_cast<unsigned char>(word.m_strWord[i+1]);
-								// Typical Cyrillic range
-								if ((c == 0xD0 && next >= 0x90 && next <= 0xBF) || 
-								    (c == 0xD1 && next >= 0x80 && next <= 0x8F)) {
-									potentiallyCyrillic = true;
-									break;
-								}
-							}
-						}
-						
-						if (potentiallyCyrillic) {
-							// If it's likely valid Cyrillic, use original word and skip cleanup
-							PLOGW << "Word appears to be valid Cyrillic despite UTF-8 validation failure, preserving: " << word.m_strWord;
-							isValidUtf8 = true; // Override the validation result
-						} else {
-							// For other encoding issues, perform simple cleaning
-							cleanWord.clear();
-							for (unsigned char c : word.m_strWord) {
-								if (c < 128) {
-									cleanWord.push_back(c);
-								} else {
-									cleanWord.push_back('_');
-								}
-							}
-						}
-					} else {
-						// For other encoding issues, perform simple cleaning
-						cleanWord.clear();
-						for (unsigned char c : word.m_strWord) {
-							if (c < 128) {
-								cleanWord.push_back(c);
-							} else {
-								cleanWord.push_back('_');
-							}
-						}
-					}
-				}
-				
-				// Only modify the word if we need to clean it
-				if (!isValidUtf8 && cleanWord != word.m_strWord) {
-					// If word became empty, use a default placeholder
-					if (cleanWord.empty()) {
-						cleanWord = "_word_";
-					}
-					
-					word.m_strWord = cleanWord;
-					word.m_strUpperWord = cleanWord;
-					PLOGW << "Sanitized word: " << word.m_strWord;
-				}
+			// Fix encoding issues if any before creating default homonym
+			if (!word.m_strWord.empty()) {
+				std::string fixedWord = fixEncodingIssues(word.m_strWord, m_Language);
+				if (fixedWord != word.m_strWord) {
+					PLOGW << "Fixed encoding in default homonym creation: " << word.m_strWord << " -> " << fixedWord;
+					word.m_strWord = fixedWord;
+					word.m_strUpperWord = fixedWord;
 			}
 			
 			// Create a default homonym with robust error handling
@@ -344,14 +266,14 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 					}
 				}
 				
-				// Be very cautious with InitAncodePattern for words with encoding issues
-				if (!containsNonASCII && isValidUtf8) {
+					// Initialize the ancode pattern with caution
+					try {
 					h->InitAncodePattern();
-				} else {
-					// For words with encoding issues, set grammems directly
+					} catch (...) {
+						// If InitAncodePattern fails, set grammems directly
 					h->m_iGrammems = 0;
 					h->m_TypeGrammems = 0;
-					PLOGW << "Skipping InitAncodePattern for word with encoding issues: " << word.m_strWord;
+						PLOGW << "InitAncodePattern failed, setting default grammems for: " << word.m_strWord;
 				}
 				
 				word.InitLevelSpecific(oborot_no, h);
@@ -360,6 +282,7 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 					  << ", error: " << e.what();
 			} catch (...) {
 				PLOGE << "Unknown exception creating default homonym for word: " << word.m_strWord;
+				}
 			}
 		}
 		
