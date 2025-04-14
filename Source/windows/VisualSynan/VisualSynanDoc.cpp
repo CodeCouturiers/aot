@@ -5,6 +5,7 @@
 #include "VisualSynan.h"
 #include "MainFrm.h"
 #include "VisualSynanDoc.h"
+#include "ChildFrm.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -46,6 +47,72 @@ BOOL CVisualSynanDoc::OnNewDocument()
 /////////////////////////////////////////////////////////////////////////////
 // CVisualSynanDoc serialization
 
+void CVisualSynanDoc::Serialize(CArchive& ar)
+{
+	// For serialization, we'll save the document in raw text format
+	if (ar.IsStoring())
+	{
+		try {
+			// Get original text from the view if available
+			CString text;
+			POSITION pos = GetFirstViewPosition();
+			CView* pFirstView = pos ? GetNextView(pos) : NULL;
+			
+			// Try to get text from the view
+			if (pFirstView) {
+				// Check if it's a CEditView
+				CEditView* pEditView = DYNAMIC_DOWNCAST(CEditView, pFirstView);
+				if (pEditView) {
+					// Get text from the edit view
+					pEditView->GetWindowText(text);
+				}
+			}
+			
+			// If no text from view, construct from sentences
+			if (text.IsEmpty()) {
+				// Placeholder text
+				text = _T("# Syntax analysis results saved by VisualSynan\r\n");
+				
+				// Count sentences
+				int sentCount = m_VisualSentences.SentCount();
+				CString sentCountStr;
+				sentCountStr.Format(_T("# Number of sentences: %d\r\n\r\n"), sentCount);
+				text += sentCountStr;
+			}
+			
+			// Write the text to the archive
+			ar << text;
+		}
+		catch (...) {
+			AfxMessageBox(_T("Error occurred while saving document."), MB_ICONERROR);
+		}
+	}
+	else
+	{
+		// Loading is handled by OnOpenDocument
+	}
+}
+
+BOOL CVisualSynanDoc::OnSaveDocument(LPCTSTR lpszPathName)
+{
+	try {
+		// Use the standard document save functionality
+		BOOL result = CDocument::OnSaveDocument(lpszPathName);
+		if (result) {
+			SetModifiedFlag(FALSE);
+		}
+		return result;
+	}
+	catch (CFileException* e) {
+		e->ReportError();
+		e->Delete();
+		return FALSE;
+	}
+	catch (...) {
+		AfxMessageBox(_T("An error occurred while saving the document."), MB_ICONERROR);
+		return FALSE;
+	}
+}
 
 void CVisualSynanDoc::PreCloseFrame( CFrameWnd* pFrame )
 {

@@ -44,6 +44,8 @@ public:
 	virtual void PreCloseFrame( CFrameWnd* pFrame );
 	virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);
 	virtual BOOL CanCloseFrame(CFrameWnd* pFrame);
+	virtual BOOL OnSaveDocument(LPCTSTR lpszPathName);
+	virtual void Serialize(CArchive& ar);
 	protected:
 	virtual BOOL SaveModified();
 	//}}AFX_VIRTUAL
