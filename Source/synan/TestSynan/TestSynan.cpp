@@ -281,31 +281,57 @@ int main(int argc, const char** argv) {
                             if (!word.m_bSpace && word.GetHomonymsCount() == 0) {
                                 LOGW << "Found word with no homonyms: " << word.m_strWord;
                                 
-                                // Create a default homonym with appropriate grammar values
-                                CSynHomonym h(H.m_Synan.GetOpt()->m_Language);
-                                h.SetSentence(sentence);
-                                
-                                // Default noun ("С") for Russian or substantiv ("SUB") for German
-                                // CRITICAL: Be extremely careful with these codes - they must be valid in the grammar table
-                                h.m_SearchStatus = PredictedWord; // Set status directly
-                                h.SetLemma(word.m_strUpperWord);
-                                
-                                // Initialize pattern directly without calling potentially unsafe methods
-                                if (H.m_Synan.GetOpt()->m_Language == morphRussian) {
-                                    h.m_CommonGramCode = "С";  // Russian noun
-                                    h.SetGramCodes("СС");      // Use accessor instead of direct assignment
-                                    h.m_iPoses = (1 << 0);     // First POS is noun in Russian
-                                } else {
-                                    h.m_CommonGramCode = "SUB"; // German noun
-                                    h.SetGramCodes("SUB");     // Use accessor instead of direct assignment 
-                                    h.m_iPoses = (1 << 0);     // Substantiv in German
+                                try {
+                                    // Create a default homonym with appropriate grammar values
+                                    CSynHomonym h(H.m_Synan.GetOpt()->m_Language);
+                                    h.SetSentence(sentence);
+                                    
+                                    // Default noun ("С") for Russian or substantiv ("SUB") for German
+                                    // CRITICAL: Be extremely careful with these codes - they must be valid in the grammar table
+                                    h.m_SearchStatus = PredictedWord; // Set status directly
+                                    h.SetLemma(word.m_strUpperWord);
+                                    
+                                    // Initialize pattern directly without calling potentially unsafe methods
+                                    if (H.m_Synan.GetOpt()->m_Language == morphRussian) {
+                                        // Validate grammar code by attempting to get part of speech
+                                        const CAgramtab* gramTab = H.m_Synan.GetOpt()->GetGramTab();
+                                        if (gramTab && gramTab->CheckGramCode("С")) {
+                                            h.m_CommonGramCode = "С";  // Russian noun
+                                            h.SetGramCodes("СС");      // Use accessor instead of direct assignment
+                                            h.m_iPoses = (1 << 0);     // First POS is noun in Russian
+                                        } else {
+                                            PLOGE << "Invalid Russian grammar code - using safe fallback";
+                                            h.m_CommonGramCode = "??";  // Unknown
+                                            h.SetGramCodes("??");       // Unknown
+                                            h.m_iPoses = 0;             // No specific POS
+                                        }
+                                    } else {
+                                        // Validate grammar code by attempting to get part of speech
+                                        const CAgramtab* gramTab = H.m_Synan.GetOpt()->GetGramTab();
+                                        if (gramTab && gramTab->CheckGramCode("SUB")) {
+                                            h.m_CommonGramCode = "SUB"; // German noun
+                                            h.SetGramCodes("SUB");      // Use accessor instead of direct assignment 
+                                            h.m_iPoses = (1 << 0);      // Substantiv in German
+                                        } else {
+                                            PLOGE << "Invalid German grammar code - using safe fallback";
+                                            h.m_CommonGramCode = "??";  // Unknown
+                                            h.SetGramCodes("??");       // Unknown
+                                            h.m_iPoses = 0;             // No specific POS
+                                        }
+                                    }
+                                    
+                                    // Add homonym directly to the word's homonym vector
+                                    word.m_Homonyms.push_back(h);
+                                    
+                                    // Initialize language-specific elements
+                                    word.InitLevelSpecific(word.m_Homonyms.back());
                                 }
-                                
-                                // Add homonym directly to the word's homonym vector
-                                word.m_Homonyms.push_back(h);
-                                
-                                // Initialize language-specific elements
-                                word.InitLevelSpecific(word.m_Homonyms.back());
+                                catch (const std::exception& e) {
+                                    PLOGE << "Exception creating default homonym: " << e.what();
+                                }
+                                catch (...) {
+                                    PLOGE << "Unknown exception creating default homonym";
+                                }
                             }
                         }
                     }
