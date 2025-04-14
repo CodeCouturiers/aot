@@ -6,6 +6,7 @@
 #include "MainFrm.h"
 #include "VisualSynanDoc.h"
 #include "ChildFrm.h"
+#include "../../synan/SynanLib/SentencesCollection.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -70,14 +71,59 @@ void CVisualSynanDoc::Serialize(CArchive& ar)
 			
 			// If no text from view, construct from sentences
 			if (text.IsEmpty()) {
-				// Placeholder text
+				// Добавим сведения о результатах синтаксического анализа
 				text = _T("# Syntax analysis results saved by VisualSynan\r\n");
 				
-				// Count sentences
+				// Добавляем время работы
+				if (!m_WorkTimeStr.IsEmpty()) {
+					text += _T("# Processing time: ") + m_WorkTimeStr + _T("\r\n");
+				}
+				
+				// Count sentences and add them to output
 				int sentCount = m_VisualSentences.SentCount();
 				CString sentCountStr;
 				sentCountStr.Format(_T("# Number of sentences: %d\r\n\r\n"), sentCount);
 				text += sentCountStr;
+				
+				// Извлекаем текстовое представление предложений из анализатора
+				CVisualSynanApp* pApp = (CVisualSynanApp*)AfxGetApp();
+				if (pApp) {
+					try {
+						// Вместо прямого доступа к членам классов, получим информацию через строку
+						// Сериализуем информацию о предложениях в текст
+						CString originalText;
+						
+						// Получаем текст из CSyntaxHolder
+						const CSentencesCollection& synan = pApp->GetHolder().m_Synan;
+						for (const auto& piSent : synan.m_vectorSents) {
+							if (piSent) {
+								for (size_t i = 0; i < piSent->GetWords().size(); i++) {
+									originalText += FromRMLEncode(piSent->m_Words[i].m_strWord.c_str());
+									originalText += _T(" ");
+								}
+								originalText += _T("\r\n");
+							}
+						}
+						
+						// Добавляем оригинальный текст
+						if (!originalText.IsEmpty()) {
+							text += _T("# Original text:\r\n");
+							text += originalText;
+							text += _T("\r\n");
+						}
+						
+						// Дополнительно добавим информацию из BuildRels
+						CString relationsReport;
+						m_VisualSentences.BuildRels(relationsReport);
+						if (!relationsReport.IsEmpty()) {
+							text += _T("# Syntactic Relations:\r\n") + relationsReport;
+						}
+					}
+					catch (...) {
+						// В случае ошибки добавляем запись об ошибке
+						text += _T("# Error extracting syntax analysis details\r\n");
+					}
+				}
 			}
 			
 			// Write the text to the archive
