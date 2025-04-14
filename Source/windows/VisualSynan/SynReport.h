@@ -11,15 +11,29 @@
 inline  CDocTemplate* GetTemplate (CString Name)
 {
 	POSITION pos = AfxGetApp()->GetFirstDocTemplatePosition();
-	CDocTemplate* tmpl;
+	CDocTemplate* tmpl = nullptr;
 	CString S;
-	do {
-		tmpl = AfxGetApp()->GetNextDocTemplate (pos);
-		tmpl->GetDocString (S, CDocTemplate::regFileTypeId);
+	
+	// Loop through all templates until we find the one we need
+	while (pos != NULL) {
+		tmpl = AfxGetApp()->GetNextDocTemplate(pos);
+		if (tmpl == nullptr) {
+			break;
 		}
-	while ((tmpl != 0) &&  (S != Name));
-
-	ASSERT (tmpl);
+		
+		tmpl->GetDocString(S, CDocTemplate::regFileTypeId);
+		if (S == Name) {
+			break;  // Found the template
+		}
+	}
+	
+	// Check if template was actually found
+	if (tmpl == nullptr || S != Name) {
+		CString errMsg;
+		errMsg.Format(_T("Template '%s' not found"), Name);
+		AfxMessageBox(errMsg, MB_ICONERROR);
+		return nullptr;
+	}
 
 	return tmpl;
 };

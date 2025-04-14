@@ -140,9 +140,31 @@ BOOL CChildFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 
 void CChildFrame::OnBuildRels()
 {
-	CString report;
-	((CVisualSynanView *)GetActiveView())->OnBuildRels(report);	
-	GlobalOpenReport(report, "Relations");
+	try {
+		CVisualSynanView* pView = dynamic_cast<CVisualSynanView*>(GetActiveView());
+		if (!pView) {
+			AfxMessageBox(_T("Cannot get active view"), MB_ICONERROR);
+			return;
+		}
+		
+		CString report;
+		pView->OnBuildRels(report);
+		
+		if (!report.IsEmpty()) {
+			// Only open report if there's content
+			if (!GlobalOpenReport(report, _T("Relations"))) {
+				AfxMessageBox(_T("Failed to open relations report"), MB_ICONERROR);
+			}
+		}
+	}
+	catch (std::exception& e) {
+		CString msg;
+		msg.Format(_T("Exception building relations: %hs"), e.what());
+		AfxMessageBox(msg, MB_ICONERROR);
+	}
+	catch (...) {
+		AfxMessageBox(_T("Unknown error building relations"), MB_ICONERROR);
+	}
 }
 
 void CChildFrame::OnRunSyntax() 
