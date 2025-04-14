@@ -38,27 +38,34 @@ std::string CMAPost::GetSimilarNumAncode(const std::string& Lemma, const std::st
 		if ((POS == NUMERAL) || (POS == NUMERAL_P) || Lemma == "НУЛЕВОЙ")
 			break;
 	};
-	assert(k < Paradigms.size());
+	
+	// Заменяем assert на проверку и ранний возврат
+	if (k >= Paradigms.size()) return "";
+	
 	const CFormInfo& P = Paradigms[k];
 
 	// ищем максимальное совпадение с конца 
 	std::string AnCodes;
 	for (k = 0; k < P.GetCount(); k++)
 	{
-		std::string Form = convert_to_utf8(P.GetWordForm(k), morphRussian);
-		MakeLowerUtf8(Form);
-		if (IsNoun && Form != h && m_AbbrIndeclGramCodes.find(P.GetAncode(k)) != m_AbbrIndeclGramCodes.end())
-            // 1000 - не аббр, "свыше 1000 человек"
-			continue;
+		try {
+			std::string Form = convert_to_utf8(P.GetWordForm(k), morphRussian);
+			MakeLowerUtf8(Form);
+			if (IsNoun && Form != h && m_AbbrIndeclGramCodes.find(P.GetAncode(k)) != m_AbbrIndeclGramCodes.end())
+				// 1000 - не аббр, "свыше 1000 человек"
+				continue;
 
-		if (Form.length() > Flexia.length())
-			if (Flexia == "" || endswith(Form, Flexia))
-				AnCodes += P.GetAncode(k);
+			if (Form.length() > Flexia.length())
+				if (Flexia == "" || endswith(Form, Flexia))
+					AnCodes += P.GetAncode(k);
+		}
+		catch (...) {
+			// Игнорируем возможные исключения при обработке формы
+			continue;
+		}
 	};
 
 	return m_pRusGramTab->UniqueGramCodes(AnCodes);
-
-
 };
 
 
