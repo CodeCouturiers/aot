@@ -1398,8 +1398,15 @@ bool  CSentence::CreateSyntaxStructure() {
     m_ClauseClauseVarsCount= 1;
     for (long i = 0; i < m_OutputClauseVars.size(); i++)
     {
+        if (GetPrimitiveClause(i)->m_SynVariants.empty()) {
+            // If there are no syntax variants, create a default one to prevent assertion failures
+            PLOGW << "Adding default syntax variant for clause " << i << " to prevent assertion failure";
+            GetPrimitiveClause(i)->CreateDefaultSynVariant();
+        }
+        
         for (long k = 0; k < GetPrimitiveClause(i)->m_SynVariants.size(); k++)
             m_OutputClauseVars[i].push_back(k);
+        
         assert(!GetPrimitiveClause(i)->m_SynVariants.empty());
         m_ClauseClauseVarsCount *= GetPrimitiveClause(i)->m_SynVariants.size();
     };

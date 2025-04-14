@@ -100,6 +100,8 @@ public:
 	
 	CClause(CSentence* pSent, int iFirstWord, int iLastWord);
 
+	// Create a default syntax variant when none exists
+	void CreateDefaultSynVariant() const;
 
 	bool	IsRelative() const {return !m_RelativeWord.IsEmpty();};
 	int		FindType(EClauseType Type) const;

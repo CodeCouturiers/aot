@@ -153,36 +153,52 @@ void CHomonym::SetPredictedWord(std::string gram_codes, std::string common_gram_
         }
     }
     
-    try {
-        // Set the values
-        m_SearchStatus = PredictedWord;
-        m_CommonGramCode = common_gram_codes;
-        m_GramCodes = gram_codes;
+    // Для транслитерированных и очищенных слов используем более умную эвристику
+    if (m_Language == morphRussian && m_strLemma.find('_') != std::string::npos) {
+        PLOGW << "Attempting to guess part of speech for sanitized word: " << m_strLemma;
         
-        // Skip InitAncodePattern for non-ASCII characters to avoid potential issues
-        if (!hasNonAscii) {
-            InitAncodePattern();
-        } else {
-            // Set default values directly instead of calling InitAncodePattern
-            m_iGrammems = 0;
-            m_TypeGrammems = 0;
-            m_iPoses = (1 << 0); // Default to first part of speech
+        // Попробуем определить часть речи по окончанию слова
+        size_t len = m_strLemma.length();
+        if (len > 2) {
+            std::string ending = m_strLemma.substr(len - 2);
+            
+            // Предсказание для прилагательных
+            if (ending == "yi" || ending == "iy" || ending == "oy" || 
+                ending == "ay" || ending == "ym" || ending == "im" || 
+                ending == "om" || ending == "ye" || ending == "ie" ||
+                ending == "mi" || ending == "_i" || ending == "ih") {
+                gram_codes = "ПП";
+                common_gram_codes = "П";
+                PLOGW << "Guessed adjective for: " << m_strLemma;
+            }
+            // Предсказание для глаголов
+            else if (ending == "at" || ending == "et" || ending == "it" || 
+                     ending == "ut" || ending == "yt" || ending == "tь" ||
+                     ending == "tь" || ending == "ti" || ending == "ch") {
+                gram_codes = "ГГ";
+                common_gram_codes = "Г";
+                PLOGW << "Guessed verb for: " << m_strLemma;
+            }
+            // Предсказание для наречий
+            else if (ending == "no" || ending == "ko" || ending == "vo" || 
+                     ending == "mo" || ending == "po" || ending == "ro" ||
+                     ending == "he" || ending == "jo" || ending == "go" ||
+                     ending == "so" || ending == "zo") {
+                gram_codes = "HH";
+                common_gram_codes = "H";
+                PLOGW << "Guessed adverb for: " << m_strLemma;
+            }
+            // По умолчанию - существительное
+            else {
+                gram_codes = "СС";
+                common_gram_codes = "С";
+                PLOGW << "Default to noun for: " << m_strLemma;
+            }
         }
-    } catch (const std::exception& e) {
-        PLOGE << "Exception in SetPredictedWord: " << e.what();
-        // Set defaults
-        m_iGrammems = 0;
-        m_TypeGrammems = 0;
-        m_iPoses = (1 << 0);
-    } catch (...) {
-        PLOGE << "Unknown exception in SetPredictedWord";
-        // Set defaults
-        m_iGrammems = 0;
-        m_TypeGrammems = 0;
-        m_iPoses = (1 << 0);
     }
     
-    m_lPradigmID = UnknownParadigmId;
+    m_GramCodes = gram_codes;
+    m_CommonGramCode = common_gram_codes;
 }
 
 bool CHomonym::operator < (const CHomonym& hom) const

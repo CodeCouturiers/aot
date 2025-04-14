@@ -37,6 +37,44 @@ CClause::CClause(CSentence* pSent, int iFirstWord, int iLastWord )
 	m_AntecedentWordNo = -1;
 }
 
+void CClause::CreateDefaultSynVariant() const
+{
+    PLOGI << "Creating default syntax variant for clause " << m_iFirstWord << ":" << m_iLastWord;
+    
+    // Since this is a const method and we need to modify m_SynVariants,
+    // we need to use const_cast (this is a special case where we need to modify internal state)
+    CClause* nonConstThis = const_cast<CClause*>(this);
+    
+    // Create a minimal CMorphVariant to prevent crashes - must use the proper constructor
+    CMorphVariant defaultVariant(GetOpt()->GetGramTab());
+    
+    // Set member variables
+    defaultVariant.m_ClauseTypeNo = -1;
+    defaultVariant.m_iWeight = 1;
+    
+    // Initialize SynUnits for each word in the clause
+    for (int i = m_iFirstWord; i <= m_iLastWord; i++) {
+        // Create CSynUnit with proper constructor - needs language parameter
+        CSynUnit unit(GetOpt()->m_Language);
+        
+        unit.m_iHomonymNum = 0; // Use first homonym if available
+        
+        // If no homonyms are available, try to use a dummy homonym
+        if (GetWords()[i].GetHomonymsCount() == 0) {
+            PLOGW << "No homonyms available for word at position " << i;
+            unit.m_iHomonymNum = -1;
+        }
+        
+        unit.m_Type = EWord;
+        unit.m_SentPeriod = CPeriod(i, i);
+        defaultVariant.m_SynUnits.push_back(unit);
+    }
+    
+    // Clear existing variants and add the default one
+    nonConstThis->m_SynVariants.clear();
+    nonConstThis->m_SynVariants.push_back(defaultVariant);
+}
+
 CWordVector& CClause::GetWords()
 {
 	return m_pSent->m_Words;

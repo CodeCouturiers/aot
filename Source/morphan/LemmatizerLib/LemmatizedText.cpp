@@ -98,50 +98,202 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 			OutputDebugStringA(word.m_strWord.c_str());
 			OutputDebugStringW(L"\n");
 #endif
-			// Check for any non-ASCII or potentially problematic characters
+			// Log potential encoding issues for debugging
+			PLOGW << "Forcing default homonym for word: " << word.m_strWord;
+			
+			if (word.m_strWord.empty()) {
+				PLOGE << "Empty word encountered, skipping homonym creation";
+				m_LemWords.push_back(word);
+				continue;
+			}
+			
+			// Check if the word contains any non-ASCII or UTF-8 encoding issues
+			bool isValidUtf8 = true;
 			bool containsNonASCII = false;
-			for (unsigned char c : word.m_strWord) {
+			
+			for (size_t i = 0; i < word.m_strWord.length(); ++i) {
+				unsigned char c = static_cast<unsigned char>(word.m_strWord[i]);
+				
+				// Check for non-ASCII
 				if (c > 127) {
 					containsNonASCII = true;
-					PLOGW << "Word contains non-ASCII characters: " << word.m_strWord;
-					break;
+					
+					// Check for invalid UTF-8 sequence
+					if (i + 1 >= word.m_strWord.length() ||
+						(c >= 0xC0 && c <= 0xDF && (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80) ||
+						(c >= 0xE0 && c <= 0xEF && (i + 2 >= word.m_strWord.length() || 
+							(static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80 ||
+							(static_cast<unsigned char>(word.m_strWord[i+2]) & 0xC0) != 0x80))) {
+						isValidUtf8 = false;
+						PLOGE << "Invalid UTF-8 sequence in word: " << word.m_strWord;
+						break;
+					}
 				}
 			}
-
-			// Create a default homonym for this token - using safer direct approach
-			CHomonym* h = word.AddNewHomonym();
-			h->m_SearchStatus = PredictedWord;
-			h->SetLemma(word.m_strUpperWord);
-
-			try {
-				// Use valid grammar codes for the current language
-				if (m_Language == morphRussian) {
-					h->m_CommonGramCode = "С";  // Russian noun
-					h->SetGramCodes("СС");      // Same code repeated for noun
-					h->m_iPoses = (1 << 0);     // Set part of speech mask directly
-				} else {
-					h->m_CommonGramCode = "SUB"; // German noun
-					h->SetGramCodes("SUB");      // Substantiv
-					h->m_iPoses = (1 << 0);      // Set part of speech mask directly
+			
+			// If not valid UTF-8, try to clean the string
+			std::string cleanWord = word.m_strWord;
+			if (!isValidUtf8 || containsNonASCII) {
+				PLOGW << "Attempting to sanitize word with encoding issues: " << word.m_strWord;
+				
+				// Improved detection for double-encoded Cyrillic text patterns
+				bool containsDoubleEncodedCyrillic = false;
+				
+				// Check for common double-encoded Cyrillic patterns
+				// These patterns appear when UTF-8 Cyrillic is incorrectly interpreted as Windows-1251
+				for (const auto& pattern : {
+					"РІ", "СЃ", "Р°", "Рѕ", "Рµ", "Рё", "Рј", "РЅ", "СЂ", "С‚", 
+					"Рє", "Р»", "Рґ", "Рї", "Сѓ", "С„", "С…", "РЁ", "С‰", "СЊ", "СЏ"
+				}) {
+					if (word.m_strWord.find(pattern) != std::string::npos) {
+						containsDoubleEncodedCyrillic = true;
+						break;
+					}
 				}
 				
-				// Skip InitAncodePattern for non-ASCII words - this avoids the assertion
-				if (!containsNonASCII) {
+				// For double-encoded Cyrillic, attempt transliteration
+				if (containsDoubleEncodedCyrillic) {
+					PLOGW << "Detected double-encoded Cyrillic text: " << word.m_strWord;
+					
+					// Known patterns of double-encoded Cyrillic and their replacements
+					// Table maps common double-encoded sequences to their Latin equivalents
+					static const std::unordered_map<std::string, char> cyrillicPatterns = {
+						{"Р°", 'a'}, {"Р±", 'b'}, {"РІ", 'v'}, {"Рі", 'g'}, 
+						{"Рґ", 'd'}, {"Рµ", 'e'}, {"С'", 'e'}, {"Р¶", 'z'}, 
+						{"Р·", 'z'}, {"Рё", 'i'}, {"Р№", 'i'}, {"Рє", 'k'}, 
+						{"Р»", 'l'}, {"Рј", 'm'}, {"РЅ", 'n'}, {"Рѕ", 'o'}, 
+						{"Рї", 'p'}, {"СЂ", 'r'}, {"СЃ", 's'}, {"С‚", 't'}, 
+						{"Сѓ", 'u'}, {"С„", 'f'}, {"С…", 'h'}, {"С†", 'c'}, 
+						{"С‡", 'c'}, {"С€", 's'}, {"С‰", 's'}, {"СЉ", '_'}, 
+						{"С‹", 'y'}, {"СЊ", '_'}, {"СЌ", 'e'}, {"СЋ", 'u'}, 
+						{"СЏ", 'y'}
+					};
+					
+					cleanWord = "";
+					bool foundPattern = false;
+					
+					// Process the word character by character
+					for (size_t i = 0; i < word.m_strWord.length(); i++) {
+						bool patternFound = false;
+						
+						// Try to match double-encoded patterns
+						for (const auto& [pattern, replacement] : cyrillicPatterns) {
+							if (i + pattern.length() <= word.m_strWord.length() && 
+								word.m_strWord.substr(i, pattern.length()) == pattern) {
+								cleanWord.push_back(replacement);
+								i += pattern.length() - 1; // Skip processed characters
+								patternFound = true;
+								foundPattern = true;
+								break;
+							}
+						}
+						
+						// If no pattern found, keep ASCII characters and replace others
+						if (!patternFound) {
+							unsigned char c = static_cast<unsigned char>(word.m_strWord[i]);
+							if (c < 128) {
+								cleanWord.push_back(c);
+							} else {
+								cleanWord.push_back('_');
+							}
+						}
+					}
+					
+					// If no patterns were found, fall back to simple cleaning
+					if (!foundPattern) {
+						cleanWord = "";
+						for (unsigned char c : word.m_strWord) {
+							if (c < 128) {
+								cleanWord.push_back(c);
+							} else {
+								cleanWord.push_back('_');
+							}
+						}
+					}
+				} else {
+					// For other encoding issues, perform simple cleaning
+					cleanWord.clear();
+					for (unsigned char c : word.m_strWord) {
+						if (c < 128) {
+							cleanWord.push_back(c);
+						} else {
+							cleanWord.push_back('_');
+						}
+					}
+				}
+				
+				// If word became empty, use a default placeholder
+				if (cleanWord.empty()) {
+					cleanWord = "_word_";
+				}
+				
+				word.m_strWord = cleanWord;
+				word.m_strUpperWord = cleanWord;
+				PLOGW << "Sanitized word: " << word.m_strWord;
+			}
+
+			// Create a default homonym with robust error handling
+			try {
+				CHomonym* h = word.AddNewHomonym();
+				h->m_SearchStatus = PredictedWord;
+				h->SetLemma(word.m_strUpperWord);
+
+				// Use fully qualified grammar codes from GetGramTab
+				const CAgramtab* gramTab = GetMHolder(m_Language).m_pGramTab;
+				if (!gramTab) {
+					PLOGE << "Grammar table is null, using simple defaults";
+					if (m_Language == morphRussian) {
+						h->m_CommonGramCode = "С";  // Default Russian noun
+						h->SetGramCodes("СС");      // Same code
+						h->m_iPoses = (1 << 0);     // First POS
+					} else {
+						h->m_CommonGramCode = "SUB"; // Default German noun
+						h->SetGramCodes("SUB");      // Same code
+						h->m_iPoses = (1 << 0);      // First POS
+					}
+				} else {
+					// Use default grammar codes that are validated against the grammar table
+					if (m_Language == morphRussian) {
+						if (gramTab->CheckGramCode("С")) {
+							h->m_CommonGramCode = "С";
+							h->SetGramCodes("СС");
+							h->m_iPoses = (1 << 0);
+						} else {
+							h->m_CommonGramCode = "??";
+							h->SetGramCodes("??");
+							h->m_iPoses = 0;
+							PLOGE << "Invalid Russian grammar code, using fallback: ??";
+						}
+					} else {
+						if (gramTab->CheckGramCode("SUB")) {
+							h->m_CommonGramCode = "SUB";
+							h->SetGramCodes("SUB");
+							h->m_iPoses = (1 << 0);
+						} else {
+							h->m_CommonGramCode = "??";
+							h->SetGramCodes("??");
+							h->m_iPoses = 0;
+							PLOGE << "Invalid German grammar code, using fallback: ??";
+						}
+					}
+				}
+				
+				// Be very cautious with InitAncodePattern for words with encoding issues
+				if (!containsNonASCII && isValidUtf8) {
 					h->InitAncodePattern();
 				} else {
-					// For non-ASCII words, set grammems directly instead of calling InitAncodePattern
-					// This skips the problematic function calls that might trigger assertions
-					h->m_iGrammems = 0;  // Set to default value 
+					// For words with encoding issues, set grammems directly
+					h->m_iGrammems = 0;
 					h->m_TypeGrammems = 0;
-					PLOGW << "Skipping InitAncodePattern for non-ASCII word: " << word.m_strWord;
+					PLOGW << "Skipping InitAncodePattern for word with encoding issues: " << word.m_strWord;
 				}
+				
+				word.InitLevelSpecific(oborot_no, h);
 			} catch (const std::exception& e) {
 				PLOGE << "Exception creating default homonym for word: " << word.m_strWord 
-				      << ", error: " << e.what();
-				// Continue processing even after exception
+					  << ", error: " << e.what();
 			} catch (...) {
 				PLOGE << "Unknown exception creating default homonym for word: " << word.m_strWord;
-				// Continue processing even after exception
 			}
 		}
 		
