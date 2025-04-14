@@ -20,8 +20,8 @@ void  CVisualGroups::CalculateGroupsCoordinates(CDC* pDC,int iWidth, int& iLine,
 		
 		pGroup = m_arrActiveGroups[i];
 		if( pGroup->m_bClause ) {
-			// Более заметный красный для клауз
-			Color = RGB(220,20,60);  // Crimson
+			// Более приятный цвет для клауз
+			Color = RGB(55, 125, 125);  // Мягкий сине-зеленый (teal)
 		} else {
 			// Градация синего в зависимости от уровня группы
 			int blueIntensity = max(50, 204 - (pGroup->m_iLevel * 30));

@@ -138,7 +138,7 @@ BOOL CVisualWord::PrintWord(CDC* pDC, int iOffset)
         pDC->SetTextColor(RGB(0, 102, 204));  // Более мягкий синий
     }
     else if (m_bArtificialCreated) {
-        pDC->SetTextColor(RGB(204, 51, 51));  // Более мягкий красный
+        pDC->SetTextColor(RGB(39, 145, 116));  // Приятный для глаз зеленовато-бирюзовый
     }
 
     // Антиалиасинг для лучшего качества текста
