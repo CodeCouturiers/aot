@@ -3,176 +3,188 @@
 #include <algorithm>
 
 
-void  CVisualGroups::CalculateGroupsCoordinates(CDC* pDC,int iWidth, int& iLine, int iPrevBottom)
+void CVisualGroups::CalculateGroupsCoordinates(CDC* pDC, int iWidth, int& iLine, int iPrevBottom)
 {
-
-	COLORREF Color;
 	CVisualGroup* pGroup;
 	BOOL bRes;
 
+	// Получаем метрики текста для лучшего расчета позиционирования
 	int iWordsCount = m_pWordsArr->GetSize();
 	TEXTMETRIC txtM;
 	pDC->GetTextMetrics(&txtM);	
 	int iBottom;	
 		
-	for(int i = 0 ; i < m_arrActiveGroups.size() ; i++)
+	// Обновленная зелено-бирюзовая цветовая схема
+	const COLORREF baseColors[5] = {
+		RGB(26, 188, 156),  // Бирюзовый (Turquoise)
+		RGB(22, 160, 133),  // Зеленое море (Green Sea)
+		RGB(46, 204, 113),  // Изумрудный (Emerald)
+		RGB(39, 174, 96),   // Нефритовый (Nephrite)
+		RGB(40, 180, 135)   // Средний бирюзово-зеленый
+	};
+	
+	// Обрабатываем каждую активную группу
+	for(int i = 0; i < m_arrActiveGroups.size(); i++)
 	{
-		
+		COLORREF Color;
 		pGroup = m_arrActiveGroups[i];
-		if( pGroup->m_bClause ) {
-			// Более приятный цвет для клауз
-			Color = RGB(55, 125, 125);  // Мягкий сине-зеленый (teal)
+		
+		// Выбираем цвета на основе типа и уровня группы
+		if(pGroup->m_bClause) {
+			// Для клауз используем более темный оттенок бирюзового
+			Color = RGB(16, 124, 104);  // Темно-бирюзовый вместо красного
 		} else {
-			// Градация синего в зависимости от уровня группы
-			int blueIntensity = max(50, 204 - (pGroup->m_iLevel * 30));
-			Color = RGB(0, 102, blueIntensity);  // Синий с градацией по уровню
+			// Выбираем цвет из градиентной схемы в зависимости от уровня
+			int colorIndex = min(pGroup->m_iLevel % 5, 4);
+			Color = baseColors[colorIndex];
 		}
 		
-		int iFirstWord, iLastWord;
-		iFirstWord = pGroup->m_iFirstWord;
-		iLastWord =  pGroup->m_iLastWord;
+		int iFirstWord = pGroup->m_iFirstWord;
+		int iLastWord = pGroup->m_iLastWord;
 		
-		
+		// Получаем координаты первого и последнего слова в группе
 		CRect& rectFirstWord = ((CVisualWord*)(m_pWordsArr->GetAt(iFirstWord)))->m_WordRect;
 		CRect& rectLastWord = ((CVisualWord*)(m_pWordsArr->GetAt(iLastWord)))->m_WordRect;
 
 		iBottom = min(rectFirstWord.bottom, rectLastWord.bottom);
-
 		BOOL bOnDifferentLines = (rectFirstWord.bottom != rectLastWord.bottom);
 
-		if( pGroup->m_iLevel == 0 )
+		// Пропускаем группы нулевого уровня
+		if(pGroup->m_iLevel == 0)
 			return;
-		int yCoef = ((m_iSpaceBetweenLinesG - (txtM.tmHeight + (txtM.tmHeight/3)*2))/(m_iMaxGroupLevel) ) * (m_iMaxGroupLevel -  pGroup->m_iLevel);
 		
+		// Расчет высоты дуги в зависимости от уровня группы
+		// Более высокий уровень = ниже дуга для лучшей видимости
+		int yCoef = ((m_iSpaceBetweenLinesG - (txtM.tmHeight + (txtM.tmHeight/3)*2))/(m_iMaxGroupLevel)) * 
+		           (m_iMaxGroupLevel - pGroup->m_iLevel);
 
+		// Находим точки крепления левой и правой ножки дуги
 		CPoint pointLeftLeg;
-		bRes = GetLeftLegPointForGroupArc(i,&pointLeftLeg,iWidth);
-		if( !bRes )
+		bRes = GetLeftLegPointForGroupArc(i, &pointLeftLeg, iWidth);
+		if(!bRes)
 			return;
 
 		CPoint pointRightLeg;
-		bRes = GetRightLegPointForGroupArc(i,&pointRightLeg,iWidth);
-		if( !bRes )
+		bRes = GetRightLegPointForGroupArc(i, &pointRightLeg, iWidth);
+		if(!bRes)
 			return;
-		int top  = rectFirstWord.top - (m_iSpaceBetweenLinesG - (txtM.tmHeight + (txtM.tmHeight/3)*2)) + yCoef;
+			
+		// Верхняя точка дуги учитывает уровень вложенности
+		int top = rectFirstWord.top - (m_iSpaceBetweenLinesG - (txtM.tmHeight + (txtM.tmHeight/3)*2)) + yCoef;
 		
-		if( bOnDifferentLines )
-		{
-			bOnDifferentLines = !( (pointLeftLeg.y < rectFirstWord.bottom) && (pointRightLeg.y < rectFirstWord.bottom) );
+		// Уточняем, находятся ли слова группы на разных строках
+		if(bOnDifferentLines) {
+			bOnDifferentLines = !((pointLeftLeg.y < rectFirstWord.bottom) && 
+			                      (pointRightLeg.y < rectFirstWord.bottom));
 		}
 
-		if( ( iBottom > iPrevBottom ) && !bOnDifferentLines )
+		// Инкрементируем линию, если необходимо
+		if((iBottom > iPrevBottom) && !bOnDifferentLines)
 			iLine++;
 		
+		// Настраиваем расстояние между строками и рассчитываем координаты группы
 		pGroup->SetSpaceBetweenLines(m_iSpaceBetweenLinesG);
-		pGroup->CalculateCoordinates(pDC,pointLeftLeg,pointRightLeg,top,iWidth,bOnDifferentLines, Color, iLine);
+		pGroup->CalculateCoordinates(pDC, pointLeftLeg, pointRightLeg, top, iWidth, 
+		                             bOnDifferentLines, Color, iLine);
 
+		// Запоминаем нижнюю координату для следующей группы
 		iPrevBottom = min(rectFirstWord.bottom, rectLastWord.bottom);		
 	}
-	
 }
 
-
-
-BOOL  CVisualGroups::GetLeftLegPointForGroupArc(int iGroupNum, CPoint* pPoint, int iWidth)
+// Улучшенный алгоритм нахождения левой точки крепления дуги
+BOOL CVisualGroups::GetLeftLegPointForGroupArc(int iGroupNum, CPoint* pPoint, int iWidth)
 {
-	CPoint point;
 	CVisualGroup* pGroupForDrawing = m_arrActiveGroups[iGroupNum];	
 	BOOL bExistUsefulGroup = FALSE;
-	CVisualGroup* pGroup;
+	CVisualGroup* pGroup = nullptr;
 
+	// Поиск группы с тем же первым словом
 	int i = iGroupNum - 1;
-	for( ; i >= 0 ; i-- )
-	{
+	for(; i >= 0; i--) {
 		pGroup = m_arrActiveGroups[i];
-		if(pGroup->m_iFirstWord == pGroupForDrawing->m_iFirstWord)
-		{
+		if(pGroup->m_iFirstWord == pGroupForDrawing->m_iFirstWord) {
 			bExistUsefulGroup = TRUE;
 			break;
 		}		
 	}
 
-	if(		bExistUsefulGroup 
-		&& 	!(pGroupForDrawing->m_bClause && !m_arrActiveGroups[i]->m_bClause) 
-	  )
-	{	
-		ASSERT( i >= 0 );
+	// Если нашли подходящую группу и это не случай клаузы и не-клаузы
+	if(bExistUsefulGroup && !(pGroupForDrawing->m_bClause && !m_arrActiveGroups[i]->m_bClause)) {	
+		ASSERT(i >= 0);
 		pGroup = m_arrActiveGroups[i];
-		//from the middle
-		if((pGroup->m_pointLeft.x  == 0) && (pGroup->m_pointRight.x))
+		
+		// Проверка корректности координат
+		if((pGroup->m_pointLeft.x == 0) && (pGroup->m_pointRight.x))
 			return FALSE;
 
+		// Используем Y-координату существующей группы для визуального выравнивания
 		pPoint->y = pGroup->m_pointLeft.y;
 
-		if(pGroup->m_pointLeft.y == pGroup->m_pointRight.y)
-		{
-			//! pPoint->x = pGroup->m_pointLeft.x + (pGroup->m_pointRight.x - pGroup->m_pointLeft.x)/2;
+		// Если группа на одной линии, сдвигаем точку крепления для лучшего внешнего вида
+		if(pGroup->m_pointLeft.y == pGroup->m_pointRight.y) {
+			// Смещение для создания плавной дуги
 			pPoint->x = pGroup->m_pointLeft.x + 10;
-			
 		}
-		//if this group is on different lines
-		else
-		{
-			//!s pPoint->x = pGroup->m_pointLeft.x + (iWidth - pGroup->m_pointLeft.x)/2;
+		// Если группа на разных строках, позиционируем иначе
+		else {
 			pPoint->x = pGroup->m_pointLeft.x + 10;
 		}
 	}
-	else
-	{
-		CVisualWord* pWord = (CVisualWord* )(m_pWordsArr->GetAt(pGroupForDrawing->m_iFirstWord));
-		if( pWord->m_WordRect.IsRectEmpty() )
+	// Если нет подходящей группы, привязываемся к слову
+	else {
+		CVisualWord* pWord = (CVisualWord*)(m_pWordsArr->GetAt(pGroupForDrawing->m_iFirstWord));
+		if(pWord->m_WordRect.IsRectEmpty())
 			return FALSE;
-		//from the middle of the word
-		//pPoint->x = pWord->m_WordRect.left + (pWord->m_WordRect.right - pWord->m_WordRect.left)/2;	
+		
+		// Крепим к началу слова со смещением для эстетики
 		pPoint->x = pWord->m_WordRect.left + 10;	
 		pPoint->y = pWord->m_WordRect.top;
 	}
+	
 	return TRUE;
 }
 
-
+// Улучшенный алгоритм нахождения правой точки крепления дуги
 BOOL CVisualGroups::GetRightLegPointForGroupArc(int iGroupNum, CPoint* pPoint, int iWidth)
 {
 	CVisualGroup* pGroupForDrawing = m_arrActiveGroups[iGroupNum];
-	CVisualGroup* pGroup;
+	CVisualGroup* pGroup = nullptr;
 	BOOL bExistUsefulGroup = FALSE;	
-	if( iGroupNum > 0 )
-	{
+	
+	// Проверяем, есть ли группа с тем же последним словом
+	if(iGroupNum > 0) {
 		pGroup = m_arrActiveGroups[iGroupNum - 1];
 		if(pGroup->m_iLastWord == pGroupForDrawing->m_iLastWord)
 			bExistUsefulGroup = TRUE;
 	}
 
-	if(		bExistUsefulGroup 
-		&& 	!(pGroupForDrawing->m_bClause && !pGroup->m_bClause) 
-	  )
-	{
+	// Если нашли подходящую группу и условия соответствуют
+	if(bExistUsefulGroup && !(pGroupForDrawing->m_bClause && !pGroup->m_bClause)) {
+		// Используем Y-координату существующей группы
 		pPoint->y = pGroup->m_pointLeft.y;
 
-		if(pGroup->m_pointLeft.y == pGroup->m_pointRight.y)
-		{
-			//s pPoint->x = pGroup->m_pointLeft.x + (pGroup->m_pointRight.x - pGroup->m_pointLeft.x)/2;
-			pPoint->x = pGroup->m_pointRight.x-10;
-			
+		// Если группа на одной строке
+		if(pGroup->m_pointLeft.y == pGroup->m_pointRight.y) {
+			// Размещаем точку крепления ближе к концу для более плавной дуги
+			pPoint->x = pGroup->m_pointRight.x - 10;
 		}
-		//if this group is on different lines
-		else
-		{
-			//s pPoint->x = pGroup->m_pointLeft.x + (iWidth - pGroup->m_pointLeft.x)/2;
+		// Если группа на разных строках
+		else {
+			// Специальное размещение для мультистрочных групп
 			pPoint->x = pGroup->m_pointRight.x + iWidth - 10;
-
 		}
-
 	}
-	else
-	{
-		CVisualWord* pWord = (CVisualWord* )(m_pWordsArr->GetAt(pGroupForDrawing->m_iLastWord));
-		if( pWord->m_WordRect.IsRectEmpty() )
+	// Если нет подходящей группы, привязываемся к слову
+	else {
+		CVisualWord* pWord = (CVisualWord*)(m_pWordsArr->GetAt(pGroupForDrawing->m_iLastWord));
+		if(pWord->m_WordRect.IsRectEmpty())
 			return FALSE;
-		//from the middle of the word
-		//s pPoint->x = pWord->m_WordRect.left + (pWord->m_WordRect.right - pWord->m_WordRect.left)/2;	
-		pPoint->x = pWord->m_WordRect.right-10;	
+		
+		// Крепим к концу слова для баланса с левой стороной
+		pPoint->x = pWord->m_WordRect.right - 10;	
 		pPoint->y = pWord->m_WordRect.top;	
 	}
+	
 	return TRUE;
 }

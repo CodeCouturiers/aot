@@ -133,12 +133,12 @@ BOOL CVisualWord::PrintWord(CDC* pDC, int iOffset)
     CFont* pOldFont = NULL;    
     COLORREF old_color = pDC->GetTextColor();
 
-    // Улучшенная цветовая схема
+    // Улучшенная цветовая схема с бирюзово-зелеными оттенками
     if (m_bInTermin) {
-        pDC->SetTextColor(RGB(0, 102, 204));  // Более мягкий синий
+        pDC->SetTextColor(RGB(26, 188, 156));  // Бирюзовый (Turquoise)
     }
     else if (m_bArtificialCreated) {
-        pDC->SetTextColor(RGB(39, 145, 116));  // Приятный для глаз зеленовато-бирюзовый
+        pDC->SetTextColor(RGB(39, 174, 96));   // Изумрудно-зеленый (Emerald)
     }
 
     // Антиалиасинг для лучшего качества текста
@@ -156,28 +156,54 @@ BOOL CVisualWord::PrintWord(CDC* pDC, int iOffset)
         pOldFont = pDC->SelectObject(&CVisualSynanView::m_BoldFontForWords);
     }
 
-    // Отрисовка подчеркивания для предикатов
+    // Улучшенное подчеркивание для предикатов с бирюзовым оттенком
     if (((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk) {
-        CPen pen(PS_SOLID, 1, RGB(100, 100, 100));
+        // Создаем перо с эффектом градиента для подчеркивания
+        CPen pen(PS_SOLID, 2, RGB(22, 160, 133));  // Зеленое море (Green Sea)
         CPen* pOldPen = pDC->SelectObject(&pen);
         
+        // Основная линия
         pDC->MoveTo(m_WordRect.left, m_WordRect.bottom + 2 - iOffset);
         pDC->LineTo(m_WordRect.right, m_WordRect.bottom + 2 - iOffset);
+        
+        // Тонкая дополнительная линия для эффекта объема
+        CPen lightPen(PS_SOLID, 1, RGB(26, 188, 156));  // Турецкий (Turquoise)
+        pDC->SelectObject(&lightPen);
+        pDC->MoveTo(m_WordRect.left, m_WordRect.bottom + 1 - iOffset);
+        pDC->LineTo(m_WordRect.right, m_WordRect.bottom + 1 - iOffset);
         
         pDC->SelectObject(pOldPen);
     }
 
-    // Отрисовка текста с тенью для улучшения читаемости
+    // Плавные тени и эффекты для текста в зависимости от его типа
     if (m_bBold) {
-        // Тень для жирного текста
-        COLORREF shadowColor = RGB(200, 200, 200);
+        // Для жирного текста добавляем более выраженную тень
+        COLORREF shadowColor = RGB(210, 210, 210);
+        COLORREF textColor;
+        
+        // Определяем цвет текста в зависимости от его типа
+        if (m_bInTermin) {
+            textColor = RGB(26, 188, 156); // Турецкий
+        } 
+        else if (m_bArtificialCreated) {
+            textColor = RGB(39, 174, 96); // Изумрудный 
+        } 
+        else {
+            textColor = RGB(0, 0, 0); // Обычный черный текст
+        }
+        
+        // Рисуем тень
         pDC->SetTextColor(shadowColor);
         pDC->TextOut(m_WordRect.left + 1, m_WordRect.top - iOffset + 1, m_strWord, m_strWord.GetLength());
-        pDC->SetTextColor(old_color);
+        
+        // Рисуем основной текст
+        pDC->SetTextColor(textColor);
+        pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
+    } 
+    else {
+        // Для обычного текста - просто рисуем
+        pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
     }
-
-    // Основной текст
-    pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
 
     // Восстановление состояния DC
     if (pOldFont) {

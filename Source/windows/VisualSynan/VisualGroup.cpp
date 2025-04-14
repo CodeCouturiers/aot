@@ -19,7 +19,6 @@ CVisualGroup::CVisualGroup()
 
 BOOL CVisualGroup::Init(const CClause& clause, const CGroup& piGroup)
 {
-	
 	m_iFirstWord = piGroup.m_iFirstWord;
 	m_iLastWord = piGroup.m_iLastWord;
 	m_strDescription = FromRMLEncode(clause.GetOpt()->GetGroupNameByIndex(piGroup.m_GroupType));
@@ -28,226 +27,316 @@ BOOL CVisualGroup::Init(const CClause& clause, const CGroup& piGroup)
 }
 
 
-
-BOOL CVisualGroup::CalculateCoordinates(CDC* pDC, CPoint& pointLeftLeg, CPoint& poitRightLeg, int top, int iWidth, BOOL bOnDifferentLines, COLORREF Color, int iLine)
+BOOL CVisualGroup::CalculateCoordinates(CDC* pDC, CPoint& pointLeftLeg, CPoint& pointRightLeg, 
+                                         int top, int iWidth, BOOL bOnDifferentLines, 
+                                         COLORREF Color, int iLine)
 {
-	
 	ResetParts();
 
+	// Улучшенные размеры дуг для более эстетичного вида
+	const int arcRadius = RADIUS_ANGLE + 2;  // Увеличиваем радиус для более плавных дуг
+	const int lineThickness = m_bClause ? 3 : 2;  // Толщина зависит от типа группы
+	
 	CPartOfGrArc* pPartOfGrArc;
+	
+	// Вертикальная линия от слова до начала дуги (левая сторона)
 	pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-									pointLeftLeg, 
-									CPoint(pointLeftLeg.x, top + RADIUS_ANGLE /*- 2*/),
-									Line, CRect(0,0,0,0),FALSE, FALSE);
-
-	m_vectorParts.push_back(pPartOfGrArc);	
-
+	                               pointLeftLeg, 
+	                               CPoint(pointLeftLeg.x, top + arcRadius),
+	                               Line, CRect(0,0,0,0), FALSE, FALSE);
+	m_vectorParts.push_back(pPartOfGrArc);
+	
+	// Дуга в левом верхнем углу (закругление)
 	pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-									CPoint(pointLeftLeg.x + RADIUS_ANGLE, top), 
-									CPoint(pointLeftLeg.x, top + RADIUS_ANGLE + 2),
-									ArcFig, CRect(pointLeftLeg.x, top , pointLeftLeg.x + 2*RADIUS_ANGLE - 2, top + 2*RADIUS_ANGLE),FALSE, FALSE);
-
-	m_vectorParts.push_back(pPartOfGrArc);	
-
-
+	                               CPoint(pointLeftLeg.x + arcRadius, top), 
+	                               CPoint(pointLeftLeg.x, top + arcRadius),
+	                               ArcFig, 
+	                               CRect(pointLeftLeg.x, top, pointLeftLeg.x + 2*arcRadius, top + 2*arcRadius),
+	                               FALSE, FALSE);
+	m_vectorParts.push_back(pPartOfGrArc);
 
 	CPoint _Point;
 
-	//if groups are on different lines
-	if( bOnDifferentLines)
+	// Обработка для групп на разных строках (мультилинейные группы)
+	if(bOnDifferentLines)
 	{
-
-
+		// Горизонтальная линия от левой дуги до правого края экрана
 		pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-										CPoint(pointLeftLeg.x + RADIUS_ANGLE, top), 
-										CPoint(iWidth, top),
-										Line, CRect(0,0,0,0),FALSE, FALSE);
-
+		                               CPoint(pointLeftLeg.x + arcRadius, top), 
+		                               CPoint(iWidth, top),
+		                               Line, CRect(0,0,0,0), FALSE, FALSE);
 		m_vectorParts.push_back(pPartOfGrArc);
 
 		iLine++;
-
 		int k = 1;
 		
-		while( poitRightLeg.y - top > (k+1)*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) )
+		// Вертикальные линии для мультистрочных групп
+		while(pointRightLeg.y - top > (k+1)*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE))
 		{
-
-			pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-											CPoint(0,top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) ),
-											CPoint(iWidth, top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) ),
-											Line, CRect(0,0,0,0) ,TRUE, FALSE);
+			int lineY = top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE);
 			
-			m_vectorParts.push_back(pPartOfGrArc);		
+			// Горизонтальная линия между строками
+			pPartOfGrArc = NewGroupArcPart(Color, iLine, 
+			                               CPoint(0, lineY),
+			                               CPoint(iWidth, lineY),
+			                               Line, CRect(0,0,0,0), TRUE, FALSE);
+			m_vectorParts.push_back(pPartOfGrArc);
 			k++;
 		}
 
-		pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-										CPoint(0,top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) ),
-										CPoint(poitRightLeg.x - RADIUS_ANGLE + 1, top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) ),
-										Line, CRect(0,0,0,0) ,TRUE, FALSE);
+		int finalLineY = top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE);
 		
-		m_vectorParts.push_back(pPartOfGrArc);		
+		// Горизонтальная линия от левого края до правой дуги
+		pPartOfGrArc = NewGroupArcPart(Color, iLine, 
+		                               CPoint(0, finalLineY),
+		                               CPoint(pointRightLeg.x - arcRadius, finalLineY),
+		                               Line, CRect(0,0,0,0), TRUE, FALSE);
+		m_vectorParts.push_back(pPartOfGrArc);
 
+		// Правая дуга (закругление)
+		pPartOfGrArc = NewGroupArcPart(Color, iLine,
+		                               CPoint(pointRightLeg.x, finalLineY + arcRadius),
+		                               CPoint(pointRightLeg.x - arcRadius, finalLineY),
+		                               ArcFig,
+		                               CRect(pointRightLeg.x - 2*arcRadius, finalLineY, 
+		                                     pointRightLeg.x, finalLineY + 2*arcRadius),
+		                               FALSE, FALSE);
+		m_vectorParts.push_back(pPartOfGrArc);
 
-		pPartOfGrArc = NewGroupArcPart(Color, iLine, 										
-										CPoint(poitRightLeg.x , top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) + RADIUS_ANGLE),
-										CPoint(poitRightLeg.x - RADIUS_ANGLE + 1,top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) - 1),
-										ArcFig,CRect(poitRightLeg.x - 2*RADIUS_ANGLE, top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE), poitRightLeg.x + 1, top + 2*RADIUS_ANGLE + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) ) ,FALSE, FALSE);
-
-		m_vectorParts.push_back(pPartOfGrArc);		
-
-
-
-		_Point.x = poitRightLeg.x;
-		_Point.y = top + k*(m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE) +  RADIUS_ANGLE;
-
+		_Point.x = pointRightLeg.x;
+		_Point.y = finalLineY + arcRadius;
 	}
-	else
+	else // Группа на одной строке
 	{
+		// Горизонтальная линия между дугами
 		pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-										CPoint(pointLeftLeg.x + RADIUS_ANGLE, top),
-										CPoint(poitRightLeg.x - RADIUS_ANGLE + 1, top),
-										Line, CRect(0,0,0,0),TRUE, TRUE);
+		                               CPoint(pointLeftLeg.x + arcRadius, top),
+		                               CPoint(pointRightLeg.x - arcRadius, top),
+		                               Line, CRect(0,0,0,0), TRUE, TRUE);
+		m_vectorParts.push_back(pPartOfGrArc);
 
-		m_vectorParts.push_back(pPartOfGrArc);		
-
+		// Правая дуга (закругление)
 		pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-										CPoint(poitRightLeg.x +1, top + RADIUS_ANGLE),
-										CPoint(poitRightLeg.x - RADIUS_ANGLE + 1,top ),
-										ArcFig,CRect(poitRightLeg.x - 2*RADIUS_ANGLE + 3, top, poitRightLeg.x + 1, top + 2*RADIUS_ANGLE ) ,FALSE, TRUE);
+		                               CPoint(pointRightLeg.x, top + arcRadius),
+		                               CPoint(pointRightLeg.x - arcRadius, top),
+		                               ArcFig,
+		                               CRect(pointRightLeg.x - 2*arcRadius, top, 
+		                                     pointRightLeg.x, top + 2*arcRadius),
+		                               FALSE, TRUE);
+		m_vectorParts.push_back(pPartOfGrArc);
 
-		m_vectorParts.push_back(pPartOfGrArc);		
-
-
-
-		_Point.x = poitRightLeg.x;
-		_Point.y = top +  RADIUS_ANGLE;		
+		_Point.x = pointRightLeg.x;
+		_Point.y = top + arcRadius;
 	}
 
+	// Вертикальная линия от дуги до слова (правая сторона)
 	pPartOfGrArc = NewGroupArcPart(Color, iLine, 
-									_Point, 
-									poitRightLeg,
-									Line, CRect(0,0,0,0),FALSE, FALSE);
+	                               _Point, 
+	                               pointRightLeg,
+	                               Line, CRect(0,0,0,0), FALSE, FALSE);
+	m_vectorParts.push_back(pPartOfGrArc);
 
-	m_vectorParts.push_back(pPartOfGrArc);		
-
+	// Сохраняем координаты для использования в других функциях
 	m_pointLeft.x = pointLeftLeg.x;
 	m_pointLeft.y = top;
-	m_pointRight.x = poitRightLeg.x;
+	m_pointRight.x = pointRightLeg.x;
 
-	if( bOnDifferentLines )
+	if(bOnDifferentLines)
 		m_pointRight.y = top + m_iSpaceBetweenLines + SPACE_BETWEEN_SENTENCE;
 	else
 		m_pointRight.y = top;
+		
 	return TRUE;
 }
 
 void CVisualGroup::PrintGroupPart(CDC* pDC, int i, int iOffset)
 {
-	if( (i < 0) || (i >= m_vectorParts.size()) )
+	if((i < 0) || (i >= m_vectorParts.size()))
 		return;
 
 	CPartOfGrArc* pPart = reinterpret_cast<CPartOfGrArc*>(m_vectorParts[i]);
-	ASSERT( pPart != NULL );
+	ASSERT(pPart != NULL);
 
-	// Настраиваем качество отрисовки
+	// Настраиваем DC для высококачественной отрисовки
 	int oldMode = pDC->SetBkMode(TRANSPARENT);
 	pDC->SetROP2(R2_COPYPEN);
-
-	// Создаем градиентную кисть для заливки
+	
+	// Получаем базовый цвет 
 	COLORREF baseColor = pPart->m_Color;
+	
+	// Определяем яркость для выбора цвета текста
+	int brightness = (GetRValue(baseColor) + GetGValue(baseColor) + GetBValue(baseColor)) / 3;
+	
+	// Создаем светлый оттенок базового цвета для эффекта объема
 	COLORREF lightColor = RGB(
-		min(255, GetRValue(baseColor) + 40),
-		min(255, GetGValue(baseColor) + 40),
-		min(255, GetBValue(baseColor) + 40)
+		min(255, GetRValue(baseColor) + 50),
+		min(255, GetGValue(baseColor) + 50),
+		min(255, GetBValue(baseColor) + 50)
+	);
+	
+	// Создаем темный оттенок для тени
+	COLORREF darkColor = RGB(
+		max(0, GetRValue(baseColor) - 40),
+		max(0, GetGValue(baseColor) - 40),
+		max(0, GetBValue(baseColor) - 40)
 	);
 
-	// Толщина линии зависит от типа (клауза или группа)
+	// Увеличиваем толщину линии для лучшей видимости
 	int penWidth = m_bClause ? 3 : 2;
 	
-	// Создаем перо с закругленными концами для более плавного вида
+	// Создаем перо для основной линии
 	LOGBRUSH lb;
 	lb.lbStyle = BS_SOLID;
 	lb.lbColor = baseColor;
 	lb.lbHatch = 0;
 	
+	// Используем закругленные концы линий для более элегантного вида
 	CPen pen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND | PS_JOIN_ROUND, 
-			 penWidth, &lb);
+	         penWidth, &lb);
 	CPen* pOldPen = pDC->SelectObject(&pen);
 
+	// Готовим координаты с учетом прокрутки
 	CPoint pointStart(pPart->m_pointStart.x, pPart->m_pointStart.y - iOffset);
 	CPoint pointEnd(pPart->m_pointEnd.x, pPart->m_pointEnd.y - iOffset);
 	CRect rectForArc(pPart->m_RectForArc);
 	rectForArc.bottom -= iOffset;
 	rectForArc.top -= iOffset;
 
+	// Рисуем в зависимости от типа элемента
 	if(pPart->type == ArcFig)
 	{
-		// Рисуем дугу с плавным переходом
+		// Сначала рисуем тень для основной дуги для эффекта объема
+		LOGBRUSH lbShadow;
+		lbShadow.lbStyle = BS_SOLID;
+		lbShadow.lbColor = darkColor;
+		lbShadow.lbHatch = 0;
+		
+		CPen shadowPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, penWidth, &lbShadow);
+		pDC->SelectObject(&shadowPen);
+		
+		CRect shadowRect = rectForArc;
+		shadowRect.OffsetRect(1, 1);
+		pDC->Arc(shadowRect, pointStart, pointEnd);
+		
+		// Рисуем основную дугу
+		pDC->SelectObject(&pen);
 		pDC->Arc(rectForArc, pointStart, pointEnd);
 		
-		// Добавляем небольшой блик для объема
-		CPen lightPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 1, lightColor);
+		// Добавляем световой блик сверху для эффекта объема
+		LOGBRUSH lbLight;
+		lbLight.lbStyle = BS_SOLID;
+		lbLight.lbColor = lightColor;
+		lbLight.lbHatch = 0;
+		
+		CPen lightPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 1, &lbLight);
 		pDC->SelectObject(&lightPen);
-		rectForArc.DeflateRect(1, 1);
-		pDC->Arc(rectForArc, pointStart, pointEnd);
+		
+		CRect lightRect = rectForArc;
+		lightRect.DeflateRect(1, 1);
+		lightRect.OffsetRect(-1, -1);
+		pDC->Arc(lightRect, pointStart, pointEnd);
 	}
 	else if(pPart->type == Line)
 	{
+		// Определяем направление линии
+		bool isHorizontal = abs(pointEnd.x - pointStart.x) > abs(pointEnd.y - pointStart.y);
+		
+		// Сначала рисуем тень
+		LOGBRUSH lbShadow;
+		lbShadow.lbStyle = BS_SOLID;
+		lbShadow.lbColor = darkColor;
+		lbShadow.lbHatch = 0;
+		
+		CPen shadowPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, penWidth, &lbShadow);
+		pDC->SelectObject(&shadowPen);
+		
+		if(isHorizontal) {
+			pDC->MoveTo(pointStart.x, pointStart.y + 1);
+			pDC->LineTo(pointEnd.x, pointEnd.y + 1);
+		} else {
+			pDC->MoveTo(pointStart.x + 1, pointStart.y);
+			pDC->LineTo(pointEnd.x + 1, pointEnd.y);
+		}
+		
 		// Рисуем основную линию
+		pDC->SelectObject(&pen);
 		pDC->MoveTo(pointStart);
 		pDC->LineTo(pointEnd);
 		
-		// Добавляем тонкую подсветку сверху для объема
-		CPen lightPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 1, lightColor);
+		// Рисуем световой блик
+		LOGBRUSH lbLight;
+		lbLight.lbStyle = BS_SOLID;
+		lbLight.lbColor = lightColor;
+		lbLight.lbHatch = 0;
+		
+		CPen lightPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 1, &lbLight);
 		pDC->SelectObject(&lightPen);
-		pointStart.y -= 1;
-		pointEnd.y -= 1;
-		pDC->MoveTo(pointStart);
-		pDC->LineTo(pointEnd);
+		
+		if(isHorizontal) {
+			pDC->MoveTo(pointStart.x, pointStart.y - 1);
+			pDC->LineTo(pointEnd.x, pointEnd.y - 1);
+		} else {
+			pDC->MoveTo(pointStart.x - 1, pointStart.y);
+			pDC->LineTo(pointEnd.x - 1, pointEnd.y);
+		}
 	}
 
-	// Восстанавливаем настройки DC
+	// Восстанавливаем перо
 	pDC->SelectObject(pOldPen);
-	pDC->SetROP2(oldMode);
-
-	// Улучшенная отрисовка текста описания
+	
+	// Улучшенная отрисовка текста описания группы
 	if(pPart->m_bHasDescription)
 	{
-		CFont* pOldFont = pDC->GetCurrentFont(); 
+		CFont* pOldFont = pDC->GetCurrentFont();
 		pDC->SelectObject(&(CVisualSynanView::m_FontForGroupNames));
 
 		TEXTMETRIC txtM;
 		pDC->GetTextMetrics(&txtM);
 
-		// Создаем эффект тени для текста
-		COLORREF oldTextColor = pDC->SetTextColor(RGB(128, 128, 128));
-		
-		CString& text = m_strDescription;
+		// Позиционирование текста
 		int textX, textY;
+		CString& text = m_strDescription;
 		
 		if(!pPart->m_bWholeArc)
 		{
 			textX = 6;
-			textY = pPart->m_pointStart.y - txtM.tmHeight - 4 - iOffset + 1;
+			textY = pPart->m_pointStart.y - txtM.tmHeight - 4 - iOffset;
 		}
 		else
 		{
-			textX = m_pointLeft.x + (m_pointRight.x - m_pointLeft.x)/2 + 2;
-			textY = pPart->m_pointStart.y - txtM.tmHeight - 4 - iOffset + 1;
+			// Центрируем текст для полной дуги
+			CSize textSize = pDC->GetTextExtent(text);
+			textX = m_pointLeft.x + (m_pointRight.x - m_pointLeft.x)/2 - textSize.cx/2;
+			textY = pPart->m_pointStart.y - txtM.tmHeight - 4 - iOffset;
 		}
 		
-		// Рисуем тень
+		// Сохраняем текущий цвет текста
+		COLORREF oldTextColor = pDC->GetTextColor();
+		
+		// Рисуем тень текста
+		pDC->SetTextColor(RGB(60, 60, 60));
 		pDC->TextOut(textX + 1, textY + 1, text, text.GetLength());
 		
-		// Рисуем основной текст
-		pDC->SetTextColor(baseColor);
+		// Выбираем цвет для текста в зависимости от яркости фона
+		// Для более темных групп - светлый текст, для светлых - темный
+		COLORREF textColor;
+		if(brightness < 160) { // Порог для бирюзовых цветов
+			textColor = RGB(240, 240, 240); // Почти белый для темных фонов
+		} else {
+			textColor = RGB(30, 30, 30); // Почти черный для светлых фонов
+		}
+		
+		// Рисуем текст
+		pDC->SetTextColor(textColor);
 		pDC->TextOut(textX, textY, text, text.GetLength());
-
-		// Восстанавливаем настройки
+		
+		// Восстанавливаем цвет текста
 		pDC->SetTextColor(oldTextColor);
 		pDC->SelectObject(pOldFont);
 	}
+	
+	// Восстанавливаем режим фона
+	pDC->SetBkMode(oldMode);
 }
 
 
