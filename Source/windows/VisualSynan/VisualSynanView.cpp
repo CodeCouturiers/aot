@@ -343,25 +343,45 @@ int CALLBACK GetFefaultFontEx(
   unsigned long FontType,            // type of font
   LPARAM lParam            ) // pointer to application-defined data);
 {
+	// Make sure we have valid parameters
+	if (!elfLogFont || !lParam) {
+		return 1;
+	}
+
 	if( (FontType & TRUETYPE_FONTTYPE) && (elfLogFont->lfCharSet & RUSSIAN_CHARSET) )
 	{
 		CVisualSynanView* pView = (CVisualSynanView*)lParam;
 		
-		pView->m_LogFontForWords.lfCharSet = RUSSIAN_CHARSET;//elfLogFont->lfCharSet;
+		// Safety check for view object
+		if (!pView || !::IsWindow(pView->m_hWnd)) {
+			return 1;
+		}
+		
+		// Copy the font properties safely
+		ZeroMemory(&(pView->m_LogFontForWords), sizeof(LOGFONT));
+
+		pView->m_LogFontForWords.lfCharSet = RUSSIAN_CHARSET;
 		pView->m_LogFontForWords.lfClipPrecision = elfLogFont->lfClipPrecision;
 		pView->m_LogFontForWords.lfEscapement = elfLogFont->lfEscapement;
-		wcscpy(pView->m_LogFontForWords.lfFaceName,elfLogFont->lfFaceName);
-		pView->m_LogFontForWords.lfHeight = 24;//elfLogFont->lfHeight;
+		
+		// Safe string copy to prevent buffer overruns
+		if (wcslen(elfLogFont->lfFaceName) < LF_FACESIZE) {
+			wcscpy(pView->m_LogFontForWords.lfFaceName, elfLogFont->lfFaceName);
+		} else {
+			wcscpy(pView->m_LogFontForWords.lfFaceName, L"Times New Roman");
+		}
+		
+		pView->m_LogFontForWords.lfHeight = 24;
 		pView->m_LogFontForWords.lfItalic = elfLogFont->lfItalic;
 		pView->m_LogFontForWords.lfOrientation = elfLogFont->lfOrientation;
 		pView->m_LogFontForWords.lfOutPrecision = elfLogFont->lfOutPrecision;
 		pView->m_LogFontForWords.lfPitchAndFamily = elfLogFont->lfPitchAndFamily;
-		pView->m_LogFontForWords.lfQuality = elfLogFont->lfQuality;
+		pView->m_LogFontForWords.lfQuality = CLEARTYPE_QUALITY; // Use ClearType for better readability
 		pView->m_LogFontForWords.lfStrikeOut = elfLogFont->lfStrikeOut;
 		pView->m_LogFontForWords.lfUnderline = elfLogFont->lfUnderline;
 		pView->m_LogFontForWords.lfWeight = elfLogFont->lfWeight;
-		pView->m_LogFontForWords.lfWidth = 0;//elfLogFont->lfWidth;		
-
+		pView->m_LogFontForWords.lfWidth = 0;
+		
 		pView->m_bExistUsefulFont = TRUE;
 		
 		return 0;
@@ -398,29 +418,69 @@ int CALLBACK TestIfTrueTypeEx(
 
 void CVisualSynanView::UpdateFontsFromLogFont() 
 {
+	// Validate font name length to prevent buffer overruns
+	if (wcslen(m_LogFontForWords.lfFaceName) >= LF_FACESIZE) {
+		OutputDebugString(_T("[VisualSynan] Error: Font face name too long in UpdateFontsFromLogFont\n"));
+		m_LogFontForWords.lfFaceName[LF_FACESIZE-1] = 0;
+	}
+
+	// Delete any existing fonts to prevent memory leaks
+	if (m_FontForWords.m_hObject) m_FontForWords.DeleteObject();
+	if (m_FontForGroupNames.m_hObject) m_FontForGroupNames.DeleteObject();
+	if (m_BoldFontForWords.m_hObject) m_BoldFontForWords.DeleteObject();
+	if (m_BoldUnderlineFontForWords.m_hObject) m_BoldUnderlineFontForWords.DeleteObject();
+	if (m_UnderlineFontForWords.m_hObject) m_UnderlineFontForWords.DeleteObject();
+
 	// Основной шрифт с улучшенным сглаживанием
 	LOGFONT logFont = m_LogFontForWords;
 	logFont.lfQuality = CLEARTYPE_QUALITY;  // Используем ClearType
-	m_FontForWords.CreateFontIndirect(&logFont);
+	
+	// Validate height and width values
+	if (logFont.lfHeight == 0) logFont.lfHeight = 24;
+	if (logFont.lfWidth < 0) logFont.lfWidth = 0;
+	
+	BOOL fontCreated = m_FontForWords.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create main font\n"));
+		return;
+	}
 
 	// Шрифт для имен групп - более компактный
 	logFont.lfHeight = (m_LogFontForWords.lfHeight/3) * 2;
+	if (logFont.lfHeight == 0) logFont.lfHeight = 16;
 	logFont.lfWidth = (m_LogFontForWords.lfWidth/3) * 2;
-	m_FontForGroupNames.CreateFontIndirect(&logFont);
+	if (logFont.lfWidth < 0) logFont.lfWidth = 0;
+	
+	fontCreated = m_FontForGroupNames.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create group names font\n"));
+	}
 
 	// Жирный шрифт с улучшенным начертанием
 	logFont = m_LogFontForWords;
 	logFont.lfWeight = FW_BOLD;
-	m_BoldFontForWords.CreateFontIndirect(&logFont);
+	
+	fontCreated = m_BoldFontForWords.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create bold font\n"));
+	}
 
 	// Жирный подчеркнутый шрифт
 	logFont.lfUnderline = TRUE;
-	m_BoldUnderlineFontForWords.CreateFontIndirect(&logFont);
+	
+	fontCreated = m_BoldUnderlineFontForWords.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create bold underline font\n"));
+	}
 
 	// Подчеркнутый шрифт
 	logFont = m_LogFontForWords;
 	logFont.lfUnderline = TRUE;
-	m_UnderlineFontForWords.CreateFontIndirect(&logFont);
+	
+	fontCreated = m_UnderlineFontForWords.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create underline font\n"));
+	}
 }
 
 void CVisualSynanView::OnInitialUpdate() 
