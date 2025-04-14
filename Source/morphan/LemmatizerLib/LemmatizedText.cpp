@@ -118,17 +118,44 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 				if (c > 127) {
 					containsNonASCII = true;
 					
-					// Check for invalid UTF-8 sequence
-					if (i + 1 >= word.m_strWord.length() ||
-						(c >= 0xC0 && c <= 0xDF && (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80) ||
-						(c >= 0xE0 && c <= 0xEF && (i + 2 >= word.m_strWord.length() || 
-							(static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80 ||
-							(static_cast<unsigned char>(word.m_strWord[i+2]) & 0xC0) != 0x80))) {
+					// Proper UTF-8 sequence validation
+					if (c >= 0xC0 && c <= 0xDF) {
+						// 2-byte sequence
+						if (i + 1 >= word.m_strWord.length() || 
+						   (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80) {
+							isValidUtf8 = false;
+							break;
+						}
+						i += 1; // Skip the next byte as it's part of this character
+					} else if (c >= 0xE0 && c <= 0xEF) {
+						// 3-byte sequence
+						if (i + 2 >= word.m_strWord.length() || 
+						   (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80 ||
+						   (static_cast<unsigned char>(word.m_strWord[i+2]) & 0xC0) != 0x80) {
+							isValidUtf8 = false;
+							break;
+						}
+						i += 2; // Skip the next 2 bytes
+					} else if (c >= 0xF0 && c <= 0xF7) {
+						// 4-byte sequence
+						if (i + 3 >= word.m_strWord.length() || 
+						   (static_cast<unsigned char>(word.m_strWord[i+1]) & 0xC0) != 0x80 ||
+						   (static_cast<unsigned char>(word.m_strWord[i+2]) & 0xC0) != 0x80 ||
+						   (static_cast<unsigned char>(word.m_strWord[i+3]) & 0xC0) != 0x80) {
+							isValidUtf8 = false;
+							break;
+						}
+						i += 3; // Skip the next 3 bytes
+					} else {
+						// Invalid leading byte
 						isValidUtf8 = false;
-						PLOGE << "Invalid UTF-8 sequence in word: " << word.m_strWord;
 						break;
 					}
 				}
+			}
+			
+			if (!isValidUtf8) {
+				PLOGE << "Invalid UTF-8 sequence in word: " << word.m_strWord;
 			}
 			
 			// If not valid UTF-8, try to clean the string
@@ -155,7 +182,7 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 				if (containsDoubleEncodedCyrillic) {
 					PLOGW << "Detected double-encoded Cyrillic text: " << word.m_strWord;
 					
-					// Known patterns of double-encoded Cyrillic and their replacements
+					// Known patterns of double-encoded Cyrillic and their Latin equivalents
 					// Table maps common double-encoded sequences to their Latin equivalents
 					static const std::unordered_map<std::string, char> cyrillicPatterns = {
 						{"Р°", 'a'}, {"Р±", 'b'}, {"РІ", 'v'}, {"Рі", 'g'}, 
@@ -211,27 +238,66 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 						}
 					}
 				} else {
-					// For other encoding issues, perform simple cleaning
-					cleanWord.clear();
-					for (unsigned char c : word.m_strWord) {
-						if (c < 128) {
-							cleanWord.push_back(c);
+					// Special case for valid Cyrillic UTF-8 that was incorrectly detected as invalid
+					// This handles standard Cyrillic characters that might trigger the validator but are valid
+					if (containsNonASCII && m_Language == morphRussian) {
+						// Check if the word appears to be Cyrillic but was flagged as invalid
+						bool potentiallyCyrillic = false;
+						for (size_t i = 0; i < word.m_strWord.length(); i++) {
+							unsigned char c = static_cast<unsigned char>(word.m_strWord[i]);
+							// Check for Cyrillic range in UTF-8 encoding
+							if ((c == 0xD0 || c == 0xD1) && i + 1 < word.m_strWord.length()) {
+								unsigned char next = static_cast<unsigned char>(word.m_strWord[i+1]);
+								// Typical Cyrillic range
+								if ((c == 0xD0 && next >= 0x90 && next <= 0xBF) || 
+								    (c == 0xD1 && next >= 0x80 && next <= 0x8F)) {
+									potentiallyCyrillic = true;
+									break;
+								}
+							}
+						}
+						
+						if (potentiallyCyrillic) {
+							// If it's likely valid Cyrillic, use original word and skip cleanup
+							PLOGW << "Word appears to be valid Cyrillic despite UTF-8 validation failure, preserving: " << word.m_strWord;
+							isValidUtf8 = true; // Override the validation result
 						} else {
-							cleanWord.push_back('_');
+							// For other encoding issues, perform simple cleaning
+							cleanWord.clear();
+							for (unsigned char c : word.m_strWord) {
+								if (c < 128) {
+									cleanWord.push_back(c);
+								} else {
+									cleanWord.push_back('_');
+								}
+							}
+						}
+					} else {
+						// For other encoding issues, perform simple cleaning
+						cleanWord.clear();
+						for (unsigned char c : word.m_strWord) {
+							if (c < 128) {
+								cleanWord.push_back(c);
+							} else {
+								cleanWord.push_back('_');
+							}
 						}
 					}
 				}
 				
-				// If word became empty, use a default placeholder
-				if (cleanWord.empty()) {
-					cleanWord = "_word_";
+				// Only modify the word if we need to clean it
+				if (!isValidUtf8 && cleanWord != word.m_strWord) {
+					// If word became empty, use a default placeholder
+					if (cleanWord.empty()) {
+						cleanWord = "_word_";
+					}
+					
+					word.m_strWord = cleanWord;
+					word.m_strUpperWord = cleanWord;
+					PLOGW << "Sanitized word: " << word.m_strWord;
 				}
-				
-				word.m_strWord = cleanWord;
-				word.m_strUpperWord = cleanWord;
-				PLOGW << "Sanitized word: " << word.m_strWord;
 			}
-
+			
 			// Create a default homonym with robust error handling
 			try {
 				CHomonym* h = word.AddNewHomonym();
