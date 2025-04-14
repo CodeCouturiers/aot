@@ -11,3 +11,5 @@
 Source/synan/SimpleGrammarLib/chunker_yacc.hpp
 Source/synan/SimpleGrammarLib/chunker_yacc.cpp
 Source/synan/SimpleGrammarLib/chunker_lex.cpp
+/build
+/Dicts
