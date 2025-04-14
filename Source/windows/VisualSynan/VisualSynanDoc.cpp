@@ -216,10 +216,55 @@ BOOL CVisualSynanDoc::ProcessString(CString strText)
 
 BOOL CVisualSynanDoc::OnOpenDocument(LPCTSTR lpszPathName) 
 {
-	((CMainFrame*)::AfxGetMainWnd())->m_bNewDoc = FALSE;
-	CString strPath = lpszPathName;
-	strPath.MakeLower();
-	return GetSentencesFromSynAn(*this, strPath, TRUE);
+	try {
+		((CMainFrame*)::AfxGetMainWnd())->m_bNewDoc = FALSE;
+		CString strPath = lpszPathName;
+		
+		// Проверяем, является ли файл SYN-файлом
+		CString strExt = strPath.Right(4);
+		strExt.MakeLower();
+		
+		if (strExt == _T(".syn")) {
+			// Специальная обработка для .SYN файлов
+			CStdioFile file;
+			if (!file.Open(lpszPathName, CFile::modeRead | CFile::typeText)) {
+				AfxMessageBox(_T("Не удалось открыть файл"), MB_ICONERROR);
+				return FALSE;
+			}
+			
+			// Читаем содержимое файла
+			CString fileContent, line;
+			while (file.ReadString(line)) {
+				// Пропускаем комментарии и служебные строки
+				if (!line.IsEmpty() && line[0] != '#') {
+					fileContent += line + _T("\n");
+				}
+			}
+			file.Close();
+			
+			// Если нашли какой-то текст для анализа, отправляем его на обработку
+			if (!fileContent.IsEmpty()) {
+				return GetSentencesFromSynAn(*this, fileContent, FALSE);
+			} else {
+				// Если файл пустой или содержит только комментарии, показываем сообщение
+				AfxMessageBox(_T("SYN-файл не содержит текста для анализа"), MB_ICONINFORMATION);
+				return FALSE;
+			}
+		} else {
+			// Стандартная обработка для других файлов
+			strPath.MakeLower();
+			return GetSentencesFromSynAn(*this, strPath, TRUE);
+		}
+	}
+	catch (CFileException* e) {
+		e->ReportError();
+		e->Delete();
+		return FALSE;
+	}
+	catch (...) {
+		AfxMessageBox(_T("Произошла ошибка при открытии документа"), MB_ICONERROR);
+		return FALSE;
+	}
 }
 
 
