@@ -26,6 +26,7 @@ if(WIN32)
         -D_UNICODE
         -DUNICODE
         -D_WIN32_WINNT=0x0A00
+        -DWINVER=0x0A00
     )
 endif()
 
@@ -81,6 +82,12 @@ set(HEADERS
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCE_FILES})
 
+# Ensure proper resource inclusion for both x86 and x64
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    # x64 specific settings
+    add_definitions(-D_WIN64)
+endif()
+
 # Set compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8 /MP /EHsc")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /Od /Zi /RTC1")
@@ -97,13 +104,28 @@ target_link_libraries(${PROJECT_NAME}
 
 # Set Visual Studio specific properties for the target
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    VS_GLOBAL_KEYWORD "Win32Proj"
+    VS_GLOBAL_KEYWORD "MFCProj"
     VS_PLATFORM_TOOLSET "v142"
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$(Configuration)"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
+
+# Add resource compile definitions to ensure correct processing
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+    $<$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>:_WIN64>
+    $<$<EQUAL:${CMAKE_SIZEOF_VOID_P},4>:WIN32>
+)
+
+# Set specific resource compiler flags
+if(MSVC)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /D_WIN64")
+    else()
+        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /DWIN32")
+    endif()
+endif()
 
 # Set source groups for better organization in Visual Studio
 source_group("Source Files" FILES ${SOURCES})
