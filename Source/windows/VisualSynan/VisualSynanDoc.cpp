@@ -54,79 +54,63 @@ void CVisualSynanDoc::Serialize(CArchive& ar)
 	if (ar.IsStoring())
 	{
 		try {
-			// Get original text from the view if available
+			// При сохранении формируем специальный формат для SYN файлов
 			CString text;
-			POSITION pos = GetFirstViewPosition();
-			CView* pFirstView = pos ? GetNextView(pos) : NULL;
 			
-			// Try to get text from the view
-			if (pFirstView) {
-				// Check if it's a CEditView
-				CEditView* pEditView = DYNAMIC_DOWNCAST(CEditView, pFirstView);
-				if (pEditView) {
-					// Get text from the edit view
-					pEditView->GetWindowText(text);
-				}
+			// Добавляем заголовок и служебную информацию
+			text = _T("# Syntax analysis results by VisualSynan\r\n");
+			
+			// Добавляем время работы
+			if (!m_WorkTimeStr.IsEmpty()) {
+				text += _T("# Processing time: ") + m_WorkTimeStr + _T("\r\n");
 			}
 			
-			// If no text from view, construct from sentences
-			if (text.IsEmpty()) {
-				// Добавим сведения о результатах синтаксического анализа
-				text = _T("# Syntax analysis results saved by VisualSynan\r\n");
-				
-				// Добавляем время работы
-				if (!m_WorkTimeStr.IsEmpty()) {
-					text += _T("# Processing time: ") + m_WorkTimeStr + _T("\r\n");
-				}
-				
-				// Count sentences and add them to output
-				int sentCount = m_VisualSentences.SentCount();
-				CString sentCountStr;
-				sentCountStr.Format(_T("# Number of sentences: %d\r\n\r\n"), sentCount);
-				text += sentCountStr;
-				
-				// Извлекаем текстовое представление предложений из анализатора
-				CVisualSynanApp* pApp = (CVisualSynanApp*)AfxGetApp();
-				if (pApp) {
-					try {
-						// Вместо прямого доступа к членам классов, получим информацию через строку
-						// Сериализуем информацию о предложениях в текст
-						CString originalText;
-						
-						// Получаем текст из CSyntaxHolder
-						const CSentencesCollection& synan = pApp->GetHolder().m_Synan;
+			// Счетчик предложений и заголовок
+			int sentCount = m_VisualSentences.SentCount();
+			CString sentCountStr;
+			sentCountStr.Format(_T("# Number of sentences: %d\r\n"), sentCount);
+			text += sentCountStr;
+			
+			// Специальный маркер начала данных для распознавания при открытии
+			text += _T("# SYNAN_DATA_START\r\n");
+			
+			// Получаем исходные данные из приложения
+			CVisualSynanApp* pApp = (CVisualSynanApp*)AfxGetApp();
+			if (pApp) {
+				try {
+					// Сохраняем оригинальный текст для анализа
+					const CSentencesCollection& synan = pApp->GetHolder().m_Synan;
+					if (!synan.m_vectorSents.empty()) {
+						text += _T("# Original text for analysis:\r\n");
 						for (const auto& piSent : synan.m_vectorSents) {
 							if (piSent) {
+								text += _T("SENT: ");
 								for (size_t i = 0; i < piSent->GetWords().size(); i++) {
-									originalText += FromRMLEncode(piSent->m_Words[i].m_strWord.c_str());
-									originalText += _T(" ");
+									text += FromRMLEncode(piSent->m_Words[i].m_strWord.c_str());
+									text += _T(" ");
 								}
-								originalText += _T("\r\n");
+								text += _T("\r\n");
 							}
 						}
-						
-						// Добавляем оригинальный текст
-						if (!originalText.IsEmpty()) {
-							text += _T("# Original text:\r\n");
-							text += originalText;
-							text += _T("\r\n");
-						}
-						
-						// Дополнительно добавим информацию из BuildRels
-						CString relationsReport;
-						m_VisualSentences.BuildRels(relationsReport);
-						if (!relationsReport.IsEmpty()) {
-							text += _T("# Syntactic Relations:\r\n") + relationsReport;
-						}
 					}
-					catch (...) {
-						// В случае ошибки добавляем запись об ошибке
-						text += _T("# Error extracting syntax analysis details\r\n");
+					
+					// Добавляем информацию о синтаксических отношениях
+					CString relationsReport;
+					m_VisualSentences.BuildRels(relationsReport);
+					if (!relationsReport.IsEmpty()) {
+						text += _T("# Syntactic Relations:\r\n");
+						text += relationsReport;
 					}
+					
+					// Специальный маркер конца данных
+					text += _T("# SYNAN_DATA_END\r\n");
+				}
+				catch (...) {
+					text += _T("# Error extracting syntax analysis details\r\n");
 				}
 			}
 			
-			// Write the text to the archive
+			// Записываем текст в архив
 			ar << text;
 		}
 		catch (...) {
@@ -234,25 +218,60 @@ BOOL CVisualSynanDoc::OnOpenDocument(LPCTSTR lpszPathName)
 			
 			// Читаем содержимое файла
 			CString fileContent, line;
+			bool dataSection = false;
+			bool foundData = false;
+			
 			while (file.ReadString(line)) {
-				// Пропускаем комментарии и служебные строки
-				if (!line.IsEmpty() && line[0] != '#') {
+				// Проверяем маркеры начала и конца данных
+				if (line.Find(_T("# SYNAN_DATA_START")) != -1) {
+					dataSection = true;
+					continue;
+				}
+				else if (line.Find(_T("# SYNAN_DATA_END")) != -1) {
+					dataSection = false;
+					continue;
+				}
+				
+				// Извлекаем данные предложений
+				if (dataSection && line.Find(_T("SENT: ")) == 0) {
+					// Убираем префикс "SENT: "
+					line = line.Mid(6);
 					fileContent += line + _T("\n");
+					foundData = true;
 				}
 			}
 			file.Close();
 			
-			// Если нашли какой-то текст для анализа, отправляем его на обработку
-			if (!fileContent.IsEmpty()) {
+			// Если нашли текст для анализа, отправляем его на обработку
+			if (foundData) {
 				return GetSentencesFromSynAn(*this, fileContent, FALSE);
-			} else {
-				// Если файл пустой или содержит только комментарии, показываем сообщение
-				AfxMessageBox(_T("SYN-файл не содержит текста для анализа"), MB_ICONINFORMATION);
-				return FALSE;
+			} 
+			else {
+				// Если не нашли маркированные данные, пробуем обработать весь файл как текст
+				if (!file.Open(lpszPathName, CFile::modeRead | CFile::typeText)) {
+					return FALSE;
+				}
+				
+				fileContent.Empty();
+				while (file.ReadString(line)) {
+					// Пропускаем строки комментариев
+					if (!line.IsEmpty() && line[0] != '#') {
+						fileContent += line + _T("\n");
+					}
+				}
+				file.Close();
+				
+				if (!fileContent.IsEmpty()) {
+					return GetSentencesFromSynAn(*this, fileContent, FALSE);
+				}
+				else {
+					AfxMessageBox(_T("Файл не содержит данных для анализа"), MB_ICONINFORMATION);
+					return FALSE;
+				}
 			}
-		} else {
+		} 
+		else {
 			// Стандартная обработка для других файлов
-			strPath.MakeLower();
 			return GetSentencesFromSynAn(*this, strPath, TRUE);
 		}
 	}
