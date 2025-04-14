@@ -173,8 +173,8 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDR_MAINFRAME           ICON                    "res\\VisualSynan.ico"
-IDR_VISUALTYPE          ICON                    "res\\VisualSynanDoc.ico"
+IDR_MAINFRAME           ICON                    "Res\\VisualSynan.ico"
+IDR_VISUALTYPE          ICON                    "Res\\VisualSynAnDoc.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //

@@ -16,6 +16,7 @@
 #define ID_FILE_SHOWMORPHOLOGYRESULTS   143
 #define ID_FILE_SHOWPOSTMORPH           144
 #define ID_FILE_REINITIALIZESYNTAX      145
+#define IDI_APPICON                     146
 #define IDC_RADIO1                      1000
 #define IDC_RADIO2                      1001
 #define IDC_RADIO3                      1002

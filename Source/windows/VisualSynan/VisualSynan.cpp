@@ -138,6 +138,18 @@ BOOL CVisualSynanApp::InitInstance()
 {
     OutputDebugString(_T("\n[VisualSynan] Starting InitInstance\n"));
 
+    // Устанавливаем иконку приложения
+    HICON hIcon = LoadIcon(IDR_MAINFRAME); // Используем стандартный идентификатор иконки
+    
+    // Вместо SetIcon используем AfxGetMainWnd() для установки иконки
+    if (hIcon && AfxGetMainWnd()) {
+        AfxGetMainWnd()->SetIcon(hIcon, TRUE);  // Большая иконка
+        AfxGetMainWnd()->SetIcon(hIcon, FALSE); // Маленькая иконка
+        OutputDebugString(_T("[VisualSynan] Application icon set successfully\n"));
+    } else {
+        OutputDebugString(_T("[VisualSynan] Failed to load application icon\n"));
+    }
+
     // Get the executable path and set working directory
     TCHAR exePath[MAX_PATH];
     GetModuleFileName(NULL, exePath, MAX_PATH);
@@ -283,6 +295,11 @@ BOOL CVisualSynanApp::InitInstance()
         delete pMainFrame;
         return FALSE;
     }
+
+    // Явно устанавливаем иконку для окна
+    HICON frameIcon = AfxGetApp()->LoadIcon(IDI_APPICON);
+    pMainFrame->SetIcon(frameIcon, TRUE);  // Set big icon
+    pMainFrame->SetIcon(frameIcon, FALSE); // Set small icon
 
     // Customize main window
     pMainFrame->SetWindowText(_T("VisualSynan - Синтаксический анализатор"));

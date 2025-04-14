@@ -29,6 +29,16 @@ if(WIN32)
     )
 endif()
 
+# Явно перечисляем ресурсные файлы, чтобы убедиться, что они включены в сборку
+set(RESOURCE_FILES
+    VisualSynan.rc
+    res/VisualSynan.ico
+    res/VisualSynanDoc.ico
+    res/Toolbar.bmp
+    res/Synt_1.bmp
+    Resource.h
+)
+
 set(SOURCES
     ChildFrm.cpp
     DlgHom.cpp
@@ -44,7 +54,6 @@ set(SOURCES
     VisualSentence.cpp
     VisualSentences.cpp
     VisualSynan.cpp
-    VisualSynan.rc
     VisualSynanDoc.cpp
     VisualSynanView.cpp
     VisualWord.cpp
@@ -70,7 +79,7 @@ set(HEADERS
     WaitThread.h
 )
 
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCE_FILES})
 
 # Set compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8 /MP /EHsc")
@@ -99,6 +108,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # Set source groups for better organization in Visual Studio
 source_group("Source Files" FILES ${SOURCES})
 source_group("Header Files" FILES ${HEADERS})
+source_group("Resource Files" FILES ${RESOURCE_FILES})
 
 if (BUILD_DICTS)
     add_dependencies(${PROJECT_NAME} MorphDicts)

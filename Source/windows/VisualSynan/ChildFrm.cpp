@@ -89,6 +89,12 @@ void CChildFrame::OnShowWindow(BOOL bShow, UINT nStatus)
 
 BOOL CChildFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext) 
 {
+	// Устанавливаем иконку для дочернего окна
+	HICON hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	if (hIcon) {
+		this->SetIcon(hIcon, TRUE);  // Большая иконка
+		this->SetIcon(hIcon, FALSE); // Маленькая иконка
+	}
 	
 	if( pContext->m_pNewViewClass->IsDerivedFrom(RUNTIME_CLASS(CRichEditView)) )
 	{
