@@ -134,6 +134,47 @@ CSyntaxHolder& CVisualSynanApp::GetHolder() {
 		return Rus;
 }
 
+// Функция для диагностики ресурсов
+void DiagnoseResources(UINT nIDResource)
+{
+    HINSTANCE hInstance = AfxGetInstanceHandle();
+    
+    OutputDebugString(_T("[VisualSynan] Diagnosing resource availability...\n"));
+    
+    // Проверка наличия меню
+    HRSRC hResMenu = ::FindResource(hInstance, MAKEINTRESOURCE(nIDResource), RT_MENU);
+    if (hResMenu) {
+        OutputDebugString(_T("[VisualSynan] Menu resource found\n"));
+    } else {
+        DWORD menuError = GetLastError();
+        CString menuMsg;
+        menuMsg.Format(_T("[VisualSynan] Menu resource NOT found, error=%d\n"), menuError);
+        OutputDebugString(menuMsg);
+    }
+    
+    // Проверка наличия иконки
+    HRSRC hResIcon = ::FindResource(hInstance, MAKEINTRESOURCE(nIDResource), RT_ICON);
+    if (hResIcon) {
+        OutputDebugString(_T("[VisualSynan] Icon resource found\n"));
+    } else {
+        DWORD iconError = GetLastError();
+        CString iconMsg;
+        iconMsg.Format(_T("[VisualSynan] Icon resource NOT found, error=%d\n"), iconError);
+        OutputDebugString(iconMsg);
+    }
+    
+    // Проверка наличия группы иконок
+    HRSRC hResIconGroup = ::FindResource(hInstance, MAKEINTRESOURCE(nIDResource), RT_GROUP_ICON);
+    if (hResIconGroup) {
+        OutputDebugString(_T("[VisualSynan] Icon group resource found\n"));
+    } else {
+        DWORD groupError = GetLastError();
+        CString groupMsg;
+        groupMsg.Format(_T("[VisualSynan] Icon group resource NOT found, error=%d\n"), groupError);
+        OutputDebugString(groupMsg);
+    }
+}
+
 BOOL CVisualSynanApp::InitInstance()
 {
     OutputDebugString(_T("\n[VisualSynan] Starting InitInstance\n"));
@@ -275,31 +316,39 @@ BOOL CVisualSynanApp::InitInstance()
         OutputDebugString(_T("[VisualSynan] Splash screen initialized\n"));
     }
 
-    // Create main MDI Frame window with modern style
-    OutputDebugString(_T("[VisualSynan] Creating main frame...\n"));
+    // Create main MDI Frame window
+    OutputDebugString(_T("[VisualSynan] Creating main frame using LoadFrame...\n"));
+    
+    // Проверим наличие необходимых ресурсов
+    DiagnoseResources(IDR_MAINFRAME);
+    
     CMainFrame* pMainFrame = new CMainFrame;
     if (!pMainFrame) {
         OutputDebugString(_T("[VisualSynan] Failed to create main frame!\n"));
         return FALSE;
     }
 
-    // Set modern visual style
-    OutputDebugString(_T("[VisualSynan] Setting visual styles...\n"));
-    
-    // Enable visual styles for modern look
-    SetWindowTheme(pMainFrame->GetSafeHwnd(), L"Explorer", NULL);
-    
-    // Custom frame initialization
+    // Используем стандартный LoadFrame для загрузки ресурсов и создания окна
     if (!pMainFrame->LoadFrame(IDR_MAINFRAME)) {
         OutputDebugString(_T("[VisualSynan] Failed to load main frame!\n"));
         delete pMainFrame;
         return FALSE;
     }
+    OutputDebugString(_T("[VisualSynan] LoadFrame completed successfully\n"));
+
+    // Устанавливаем размеры и позицию окна
+    pMainFrame->SetWindowPos(NULL, 0, 0, 800, 600, SWP_NOMOVE | SWP_NOZORDER);
+    pMainFrame->CenterWindow();
 
     // Явно устанавливаем иконку для окна
-    HICON frameIcon = AfxGetApp()->LoadIcon(IDI_APPICON);
-    pMainFrame->SetIcon(frameIcon, TRUE);  // Set big icon
-    pMainFrame->SetIcon(frameIcon, FALSE); // Set small icon
+    HICON frameIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+    if (frameIcon) {
+        pMainFrame->SetIcon(frameIcon, TRUE);  // Set big icon
+        pMainFrame->SetIcon(frameIcon, FALSE); // Set small icon
+        OutputDebugString(_T("[VisualSynan] Icons loaded successfully\n"));
+    } else {
+        OutputDebugString(_T("[VisualSynan] Failed to load icons\n"));
+    }
 
     // Customize main window
     pMainFrame->SetWindowText(_T("VisualSynan - Синтаксический анализатор"));
@@ -444,6 +493,10 @@ BOOL CVisualSynanApp::InitInstance()
 
         // Register document templates
         OutputDebugString(_T("[VisualSynan] Creating document template...\n"));
+        
+        // Проверяем ресурсы шаблона документа перед созданием
+        DiagnoseResources(IDR_VISUALTYPE);
+        
         m_pSynTemplate = new CMultiDocTemplate(
             IDR_VISUALTYPE,
             RUNTIME_CLASS(CVisualSynanDoc),

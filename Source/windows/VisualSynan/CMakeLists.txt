@@ -15,6 +15,67 @@ if(NOT BUILD_WINDOWS_GUI)
     return()
 endif()
 
+# Найти путь к RC компилятору
+find_program(RC_COMPILER rc HINTS "${CMAKE_CXX_COMPILER}/../" "${CMAKE_CXX_COMPILER}/../../bin/x64" "${CMAKE_CXX_COMPILER}/../../bin/x86")
+if(NOT RC_COMPILER)
+    message(FATAL_ERROR "Resource compiler not found")
+endif()
+
+# Найти путь к ATLMFC включаемым файлам и Windows SDK
+set(ATLMFC_INCLUDE_DIR "")
+set(WIN_SDK_INCLUDE_DIR "")
+
+if(MSVC)
+    # Попробуем найти atlmfc/include в нескольких стандартных местах
+    if(EXISTS "$ENV{VCToolsInstallDir}/atlmfc/include")
+        set(ATLMFC_INCLUDE_DIR "$ENV{VCToolsInstallDir}/atlmfc/include")
+    elseif(EXISTS "$ENV{VCINSTALLDIR}/atlmfc/include")
+        set(ATLMFC_INCLUDE_DIR "$ENV{VCINSTALLDIR}/atlmfc/include")
+    else()
+        # Попробуем найти atlmfc по пути компилятора
+        get_filename_component(CL_PATH ${CMAKE_CXX_COMPILER} PATH)
+        get_filename_component(MSVC_PATH ${CL_PATH} PATH)
+        if(EXISTS "${MSVC_PATH}/atlmfc/include")
+            set(ATLMFC_INCLUDE_DIR "${MSVC_PATH}/atlmfc/include")
+        endif()
+    endif()
+
+    # Найти Windows SDK include директорию
+    if(EXISTS "$ENV{WindowsSdkDir}/Include/$ENV{WindowsSDKVersion}")
+        set(WIN_SDK_INCLUDE_DIR "$ENV{WindowsSdkDir}/Include/$ENV{WindowsSDKVersion}")
+    else()
+        # Поиск во всех возможных версиях Windows SDK 10
+        file(GLOB WIN_SDK_VERSIONS "C:/Program Files (x86)/Windows Kits/10/Include/10.*")
+        if(WIN_SDK_VERSIONS)
+            # Берем последнюю версию из найденных
+            list(SORT WIN_SDK_VERSIONS)
+            list(REVERSE WIN_SDK_VERSIONS)
+            list(GET WIN_SDK_VERSIONS 0 WIN_SDK_INCLUDE_DIR)
+            message(STATUS "Found Windows SDK by search: ${WIN_SDK_INCLUDE_DIR}")
+        else()
+            # Ищем в стандартных местах
+            foreach(SDK_VER "10.0.22621.0" "10.0.22000.0" "10.0.20348.0" "10.0.19041.0" "10.0.18362.0" "10.0.17763.0")
+                if(EXISTS "C:/Program Files (x86)/Windows Kits/10/Include/${SDK_VER}")
+                    set(WIN_SDK_INCLUDE_DIR "C:/Program Files (x86)/Windows Kits/10/Include/${SDK_VER}")
+                    break()
+                endif()
+            endforeach()
+        endif()
+    endif()
+
+    if(ATLMFC_INCLUDE_DIR STREQUAL "")
+        message(WARNING "ATLMFC include directory not found. Resource compilation may fail.")
+    else()
+        message(STATUS "Found ATLMFC include directory: ${ATLMFC_INCLUDE_DIR}")
+    endif()
+
+    if(WIN_SDK_INCLUDE_DIR STREQUAL "")
+        message(WARNING "Windows SDK include directory not found. Resource compilation may fail.")
+    else()
+        message(STATUS "Found Windows SDK include directory: ${WIN_SDK_INCLUDE_DIR}")
+    endif()
+endif()
+
 if(WIN32)
     # MFC settings
     set(CMAKE_MFC_FLAG 2)
@@ -30,7 +91,7 @@ if(WIN32)
     )
 endif()
 
-# Явно перечисляем ресурсные файлы, чтобы убедиться, что они включены в сборку
+# Явно перечисляем ресурсные файлы для включения в сборку
 set(RESOURCE_FILES
     VisualSynan.rc
     res/VisualSynan.ico
@@ -80,6 +141,7 @@ set(HEADERS
     WaitThread.h
 )
 
+# Создаем исполняемый файл, включая ресурсы напрямую
 add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${RESOURCE_FILES})
 
 # Ensure proper resource inclusion for both x86 and x64
@@ -93,8 +155,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8 /MP /EHsc")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /Od /Zi /RTC1")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /O2 /Zi")
 
-# Set linker flags
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
+# Set linker flags for proper entry point и использование ресурсов
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:wWinMainCRTStartup")
 set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /DEBUG")
 
 target_link_libraries(${PROJECT_NAME} 
@@ -112,20 +174,10 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
 
-# Add resource compile definitions to ensure correct processing
-target_compile_definitions(${PROJECT_NAME} PRIVATE 
-    $<$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>:_WIN64>
-    $<$<EQUAL:${CMAKE_SIZEOF_VOID_P},4>:WIN32>
+# Включаем обработку ресурсов в Visual Studio
+set_target_properties(${PROJECT_NAME} PROPERTIES VS_RESOURCE_INCLUDE_DIRECTORIES
+    "${CMAKE_CURRENT_SOURCE_DIR};${CMAKE_SOURCE_DIR}/Source"
 )
-
-# Set specific resource compiler flags
-if(MSVC)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /D_WIN64")
-    else()
-        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /DWIN32")
-    endif()
-endif()
 
 # Set source groups for better organization in Visual Studio
 source_group("Source Files" FILES ${SOURCES})
