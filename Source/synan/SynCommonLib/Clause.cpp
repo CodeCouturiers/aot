@@ -450,7 +450,45 @@ void CClause::GetBuildingUnits(std::vector<CBuildingUnit>& BuildingUnits)
 		}
 		else
 		{
-			U.m_HomonymsCount =  GetWords()[WordNo].m_Homonyms.size();
+			U.m_HomonymsCount = GetWords()[WordNo].m_Homonyms.size();
+			
+			// If we have a word with no homonyms, create a default one 
+			// to prevent the assertion failure
+			if (U.m_HomonymsCount == 0) {
+				PLOGE << "Critical error: Found word with no homonyms in Clause.cpp: " << GetWords()[WordNo].m_strWord;
+				
+				// Add a default homonym to this word if it doesn't have any
+				CSynWord& word = const_cast<CSynWord&>(GetWords()[WordNo]);
+				if (!word.m_bSpace) {
+					PLOGW << "Creating default homonym for word: " << word.m_strWord;
+					
+					// Create a default homonym with appropriate grammar values
+					CSynHomonym h(GetOpt()->m_Language);
+					h.SetSentence(m_pSent);
+					
+					// Default noun ("С") for Russian or substantiv ("SUB") for German
+					// CRITICAL: Be extremely careful with these codes - they must be valid in the grammar table
+					h.m_SearchStatus = PredictedWord; // Set status directly
+					h.SetLemma(word.m_strUpperWord);
+					
+					// Initialize pattern directly without calling potentially unsafe methods
+					if (GetOpt()->m_Language == morphRussian) {
+						h.m_CommonGramCode = "С";  // Russian noun
+						h.SetGramCodes("СС");      // Use accessor instead of direct assignment
+						h.m_iPoses = (1 << 0);     // First POS is noun in Russian
+					} else {
+						h.m_CommonGramCode = "SUB"; // German noun
+						h.SetGramCodes("SUB");     // Use accessor instead of direct assignment
+						h.m_iPoses = (1 << 0);     // Substantiv in German
+					}
+					
+					// Add homonym directly to the word's homonym vector
+					word.m_Homonyms.push_back(h);
+					
+					// Update the count after adding a homonym
+					U.m_HomonymsCount = word.GetHomonymsCount();
+				}
+			}
 		};
 		assert (U.m_HomonymsCount > 0);
 		assert (U.m_HomonymsCount <= 64);

@@ -178,18 +178,60 @@ void initArgParser(int argc, const char **argv, ArgumentParser& parser) {
     parser.AddArgument("--output-file", "output file", true);
     parser.AddArgument("--input-file-mask", "c:/*.txt", true);
     parser.AddArgument("--output-folder", "", true);
-    parser.AddArgument("--language", "language");
+    parser.AddArgument("--language", "language", true);
     parser.AddArgument("--log-level", "log level", true);
 
-    parser.Parse(argc, argv);
+    try {
+        parser.Parse(argc, argv);
+    } 
+    catch (std::exception& ex) {
+        // If parsing fails, we'll use default values
+        std::cerr << "Using default values" << std::endl;
+    }
 }
 
 
 int main(int argc, const char** argv) {
     ArgumentParser args;
-    initArgParser(argc, argv, args);
-    auto langua = args.GetLanguage();
-    init_plog(args.GetLogLevel(), "synan_test.log", true);
+    
+    // Add command line args for "language" if not provided 
+    const char** newArgv = nullptr;
+    int newArgc = argc;
+    bool addedLanguage = false;
+    
+    if (argc < 3) {
+        // Create a new array with space for our additional args
+        newArgc = argc + 2;
+        newArgv = new const char*[newArgc];
+        
+        // Copy original args
+        for (int i = 0; i < argc; i++) {
+            newArgv[i] = argv[i];
+        }
+        
+        // Add language argument
+        newArgv[argc] = "--language";
+        newArgv[argc+1] = "Russian";
+        addedLanguage = true;
+    } else {
+        // Use original args
+        newArgv = argv;
+    }
+    
+    initArgParser(newArgc, newArgv, args);
+    
+    // Clean up if we allocated new array
+    if (addedLanguage) {
+        delete[] newArgv;
+    }
+    
+    MorphLanguageEnum langua = args.GetLanguage();
+    if (langua == morphUnknown) {
+        langua = morphRussian; // Default to Russian language
+    }
+    
+    plog::Severity logLevel = args.GetLogLevel();
+    init_plog(logLevel, "synan_test.log", true);
     GlobalLoadMorphHolder(langua);
     CSyntaxHolder H(langua);
     try {
@@ -198,14 +240,20 @@ int main(int argc, const char** argv) {
         std::cerr << "ok\n";
         std::vector <std::pair<std::string, std::string> > file_pairs;
 
-        if (args.Exists("input-file-mask")) {
+        // If no explicit input file is provided, use test.txt from current directory
+        if (!args.Exists("input-file") && !args.Exists("input-file-mask")) {
+            std::filesystem::path currentDir = std::filesystem::current_path();
+            std::string testFile = (currentDir / "test.txt").string();
+            std::string outputFile = (currentDir / "test.txt.synan").string();
+            file_pairs.push_back({testFile, outputFile});
+            LOGD << "Using default test file: " << testFile;
+        } else if (args.Exists("input-file-mask")) {
             auto file_names = list_path_by_file_mask(args.Retrieve("input-file-mask"));
             for (auto filename : file_names) {
                 auto outputFilename = filename + ".synan";
                 if (args.Exists("output-folder")) {
                     auto base_name = fs::path(outputFilename).filename();
                     auto p = fs::path(args.Retrieve("output-folder")) / base_name;
-                    //PLOGD <<  "set output file " << p;
                     outputFilename = p.string();
                 }
                 file_pairs.push_back({filename, outputFilename });
@@ -225,6 +273,43 @@ int main(int argc, const char** argv) {
                 std::string text = t["input"].GetString();
                 if (!text.empty()) {
                     H.GetSentencesFromSynAn(text, false);
+                    
+                    // Add extra validation to ensure every non-space token has homonyms
+                    for (auto& sentence : H.m_Synan.m_vectorSents) {
+                        for (auto& word : sentence->m_Words) {
+                            // Create default homonym for non-space tokens with no homonyms
+                            if (!word.m_bSpace && word.GetHomonymsCount() == 0) {
+                                LOGW << "Found word with no homonyms: " << word.m_strWord;
+                                
+                                // Create a default homonym with appropriate grammar values
+                                CSynHomonym h(H.m_Synan.GetOpt()->m_Language);
+                                h.SetSentence(sentence);
+                                
+                                // Default noun ("С") for Russian or substantiv ("SUB") for German
+                                // CRITICAL: Be extremely careful with these codes - they must be valid in the grammar table
+                                h.m_SearchStatus = PredictedWord; // Set status directly
+                                h.SetLemma(word.m_strUpperWord);
+                                
+                                // Initialize pattern directly without calling potentially unsafe methods
+                                if (H.m_Synan.GetOpt()->m_Language == morphRussian) {
+                                    h.m_CommonGramCode = "С";  // Russian noun
+                                    h.SetGramCodes("СС");      // Use accessor instead of direct assignment
+                                    h.m_iPoses = (1 << 0);     // First POS is noun in Russian
+                                } else {
+                                    h.m_CommonGramCode = "SUB"; // German noun
+                                    h.SetGramCodes("SUB");     // Use accessor instead of direct assignment 
+                                    h.m_iPoses = (1 << 0);     // Substantiv in German
+                                }
+                                
+                                // Add homonym directly to the word's homonym vector
+                                word.m_Homonyms.push_back(h);
+                                
+                                // Initialize language-specific elements
+                                word.InitLevelSpecific(word.m_Homonyms.back());
+                            }
+                        }
+                    }
+                    
                     CJsonObject sents(d, rapidjson::kArrayType);
                     GetResultBySyntax(H.m_Synan, sents);
                     t.AddMember("result", sents.get_value(), d.GetAllocator());

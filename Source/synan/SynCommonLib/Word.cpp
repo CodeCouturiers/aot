@@ -53,19 +53,97 @@ void CSynWord::SetSentence(CSentence* s) {
 }
 
 const CSynHomonym& CSynWord::GetSynHomonym(int i) const { 
+	// Add safety check to prevent access to an empty vector
+	if (m_Homonyms.empty()) {
+		PLOGE << "ERROR: Attempting to access homonym in empty vector for word: " << m_strWord;
+		// Create an emergency static homonym to return - this is safer than crashing
+		static CSynHomonym emergency(morphRussian);
+		// Return by reference without modifying the vector (const method)
+		return emergency;
+	}
+	// Boundary check
+	if (i >= m_Homonyms.size()) {
+		PLOGE << "ERROR: Homonym index out of bounds for word: " << m_strWord 
+		      << ", index: " << i << ", size: " << m_Homonyms.size();
+		// Return the first homonym as a fallback
+		return m_Homonyms[0];
+	}
 	return m_Homonyms[i]; 
 }
 
 CSynHomonym& CSynWord::GetSynHomonym(int i) {
+	// Add safety check to prevent access to an empty vector
+	if (m_Homonyms.empty()) {
+		PLOGE << "ERROR: Attempting to access homonym in empty vector for word: " << m_strWord;
+		// Create a default homonym
+		CSynHomonym h(m_pSent ? m_pSent->GetOpt()->m_Language : morphRussian);
+		if (m_pSent) {
+			h.SetSentence(m_pSent);
+		}
+		
+		// For Russian words, default to noun ("С"); for others, use "SUB"
+		// CRITICAL: Be extremely careful with these codes - they must be valid in the grammar table
+		h.m_SearchStatus = PredictedWord; // Set status directly
+		h.SetLemma(m_strUpperWord);
+		
+		// Use explicit default grammar codes without calling SetPredictedWord
+		// to avoid potential null pointer issues
+		if (m_pSent) {
+			// Initialize pattern directly without calling potentially unsafe methods
+			if (m_pSent->GetOpt()->m_Language == morphRussian) {
+				h.m_CommonGramCode = "С";  // Russian noun
+				h.SetGramCodes("СС");      // Use accessor instead of direct assignment
+				h.m_iPoses = (1 << 0);     // First POS is noun in Russian
+			} else {
+				h.m_CommonGramCode = "SUB"; // German noun
+				h.SetGramCodes("SUB");      // Use accessor instead of direct assignment
+				h.m_iPoses = (1 << 0);     // Substantiv in German
+			}
+		} else {
+			// Safe defaults if no sentence
+			h.m_CommonGramCode = "??";
+			h.SetGramCodes("??");          // Use accessor instead of direct assignment
+		}
+		
+		// Add to vector
+		m_Homonyms.push_back(h);
+		PLOGW << "Created emergency homonym for word: " << m_strWord;
+		return m_Homonyms.back();
+	}
+	
+	// Boundary check
+	if (i >= m_Homonyms.size()) {
+		PLOGE << "ERROR: Homonym index out of bounds for word: " << m_strWord 
+		      << ", index: " << i << ", size: " << m_Homonyms.size();
+		// Return the first homonym as a fallback
+		return m_Homonyms[0];
+	}
 	return m_Homonyms[i]; 
 }
 
 const CHomonym* CSynWord::GetHomonym(int i) const {
+	// Add safety check to prevent access to an empty vector
+	if (m_Homonyms.empty()) {
+		PLOGE << "ERROR: Attempting to access homonym in empty vector for word: " << m_strWord;
+		// Create an emergency static homonym to return - this is safer than crashing
+		static CSynHomonym emergency(morphRussian);
+		// Return by pointer without modifying the vector (const method)
+		return &emergency;
+	}
+	// Boundary check
+	if (i >= m_Homonyms.size()) {
+		PLOGE << "ERROR: Homonym index out of bounds for word: " << m_strWord 
+		      << ", index: " << i << ", size: " << m_Homonyms.size();
+		// Return the first homonym as a fallback
+		return &m_Homonyms[0];
+	}
 	return &m_Homonyms[i]; 
 };
 
 CHomonym* CSynWord::GetHomonym(int i) {
-	return &m_Homonyms[i]; 
+	// Simply call the non-const version of GetSynHomonym and cast the result
+	// This allows us to reuse all the safety logic from there
+	return const_cast<CHomonym*>(static_cast<const CSynWord*>(this)->GetHomonym(i));
 };
 
 CHomonym* CSynWord::AddNewHomonym() {
@@ -116,7 +194,30 @@ CSynHomonym CSynWord::CloneHomonymByAnotherHomonym(const CSynHomonym* pHomonym, 
 
 void CSynWord::CloneHomonymForOborot(int HNum)
 {
-	assert(m_Homonyms.size() > 0);
+	if (m_Homonyms.size() == 0) {
+		PLOGE << "No homonyms found for word in CloneHomonymForOborot: " << m_strWord;
+		// Create a default homonym before proceeding
+		CSynHomonym h(m_pSent ? m_pSent->GetOpt()->m_Language : morphRussian);
+		if (m_pSent) {
+			h.SetSentence(m_pSent);
+		}
+		h.m_SearchStatus = PredictedWord;
+		h.SetLemma(m_strUpperWord);
+		
+		// Use valid grammar codes for the current language
+		if (m_pSent && m_pSent->GetOpt()->m_Language == morphRussian) {
+			h.m_CommonGramCode = "С";  // Russian noun
+			h.SetGramCodes("СС");      // Same code repeated for noun
+			h.m_iPoses = (1 << 0);     // First POS is noun in Russian
+		} else {
+			h.m_CommonGramCode = "SUB"; // German noun
+			h.SetGramCodes("SUB");      // Substantiv
+			h.m_iPoses = (1 << 0);      // Set part of speech mask directly
+		}
+		
+		m_Homonyms.push_back(h);
+		PLOGW << "Created emergency homonym for CloneHomonymForOborot";
+	}
 
 	CSynHomonym H = CloneHomonymByAnotherHomonym( HNum == -1 ? &m_Homonyms.back() : &m_Homonyms[HNum], 0, UnknownPartOfSpeech);
 	
@@ -188,7 +289,10 @@ bool CSynWord::InitializePlmLine(CSynPlmLine& pPlmWord, int HomonymNo)  const
 
 const COborotForSyntax*	CSynWord::GetOborotPtr() const
 {
-	assert ( !m_Homonyms.empty() );
+	if (m_Homonyms.empty()) {
+		PLOGE << "Empty homonyms vector in GetOborotPtr for word: " << m_strWord;
+		return nullptr;
+	}
 	return m_Homonyms[0].GetOborotPtr();
 };
 

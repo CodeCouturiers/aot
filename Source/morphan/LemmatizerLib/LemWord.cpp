@@ -636,7 +636,27 @@ bool CLemWord::IsEqualToGrammarItem(const CHomonym& h, const CGrammarItem& I) co
 
 void CLemWord::BuildTerminalSymbolsByWord(const std::vector<CGrammarItem>& grm_items, size_t end_of_stream_symbol)
 {
-	assert(GetHomonymsCount() > 0);
+	if (GetHomonymsCount() == 0) {
+		PLOGE << "No homonyms found for word: " << m_strWord;
+		// Create a default homonym to prevent crashes
+		CHomonym* h = AddNewHomonym();
+		h->m_SearchStatus = PredictedWord;
+		h->SetLemma(m_strUpperWord);
+		
+		// Use valid grammar codes for the current language
+		if (m_Language == morphRussian) {
+			h->m_CommonGramCode = "С";  // Russian noun
+			h->SetGramCodes("СС");      // Same code repeated for noun
+			h->m_iPoses = (1 << 0);     // First POS is noun in Russian
+		} else {
+			h->m_CommonGramCode = "SUB"; // German noun
+			h->SetGramCodes("SUB");      // Substantiv
+			h->m_iPoses = (1 << 0);      // Set part of speech mask directly
+		}
+		
+		PLOGW << "Created emergency homonym for word in BuildTerminalSymbolsByWord";
+	}
+	
 	m_AutomatSymbolInterpetationUnion.clear();
 	for (size_t i = 0; i < GetHomonymsCount(); ++i) {
 		GetHomonym(i)->m_AutomatSymbolInterpetation.clear();

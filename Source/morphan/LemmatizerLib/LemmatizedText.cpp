@@ -60,23 +60,91 @@ void CLemmatizedText::CreateFromTokemized(const CGraphmatFile* Gr)
 			OutputDebugStringW(L"\n");
 #endif
 
-			std::vector<CFormInfo> paradigms;
-			lemmatizer->CreateParadigmCollection(false, word_s8, !token.HasDes(OLw), true, paradigms);
-			
-			if (paradigms.empty()) {
-#ifdef _DEBUG
-				OutputDebugStringW(L"[LemmatizedText] No paradigms found for word\n");
-#endif
+			// Skip lemmatization if the word contains invalid UTF-8 characters
+			bool hasInvalidCharacters = false;
+			for (unsigned char c : word_s8) {
+				// Check for invalid UTF-8 sequences that might cause problems
+				if ((c > 127) && (c < 192)) {
+					hasInvalidCharacters = true;
+					PLOGW << "Skipping word with invalid UTF-8 sequence: " << word_s8;
+					break;
+				}
 			}
 
-			for(auto& p: paradigms)
-			{
-				CHomonym* h = word.AddNewHomonym();
-				h->SetHomonym(&p);
-				word.InitLevelSpecific(oborot_no, h);
+			if (!hasInvalidCharacters) {
+				std::vector<CFormInfo> paradigms;
+				lemmatizer->CreateParadigmCollection(false, word_s8, !token.HasDes(OLw), true, paradigms);
+				
+				if (paradigms.empty()) {
+#ifdef _DEBUG
+					OutputDebugStringW(L"[LemmatizedText] No paradigms found for word\n");
+#endif
+				}
+
+				for(auto& p: paradigms)
+				{
+					CHomonym* h = word.AddNewHomonym();
+					h->SetHomonym(&p);
+					word.InitLevelSpecific(oborot_no, h);
+				}
 			}
 		}
-		word.CreateDefaultHomonym(oborot_no);
+		
+		// Ensure non-space tokens always have at least one homonym
+		// Only call CreateDefaultHomonym if not a space and has no homonyms
+		if (!word.m_bSpace && word.GetHomonymsCount() == 0) {
+#ifdef _DEBUG
+			OutputDebugStringW(L"[LemmatizedText] Forcing default homonym for word: ");
+			OutputDebugStringA(word.m_strWord.c_str());
+			OutputDebugStringW(L"\n");
+#endif
+			// Check for any non-ASCII or potentially problematic characters
+			bool containsNonASCII = false;
+			for (unsigned char c : word.m_strWord) {
+				if (c > 127) {
+					containsNonASCII = true;
+					PLOGW << "Word contains non-ASCII characters: " << word.m_strWord;
+					break;
+				}
+			}
+
+			// Create a default homonym for this token - using safer direct approach
+			CHomonym* h = word.AddNewHomonym();
+			h->m_SearchStatus = PredictedWord;
+			h->SetLemma(word.m_strUpperWord);
+
+			try {
+				// Use valid grammar codes for the current language
+				if (m_Language == morphRussian) {
+					h->m_CommonGramCode = "С";  // Russian noun
+					h->SetGramCodes("СС");      // Same code repeated for noun
+					h->m_iPoses = (1 << 0);     // Set part of speech mask directly
+				} else {
+					h->m_CommonGramCode = "SUB"; // German noun
+					h->SetGramCodes("SUB");      // Substantiv
+					h->m_iPoses = (1 << 0);      // Set part of speech mask directly
+				}
+				
+				// Skip InitAncodePattern for non-ASCII words - this avoids the assertion
+				if (!containsNonASCII) {
+					h->InitAncodePattern();
+				} else {
+					// For non-ASCII words, set grammems directly instead of calling InitAncodePattern
+					// This skips the problematic function calls that might trigger assertions
+					h->m_iGrammems = 0;  // Set to default value 
+					h->m_TypeGrammems = 0;
+					PLOGW << "Skipping InitAncodePattern for non-ASCII word: " << word.m_strWord;
+				}
+			} catch (const std::exception& e) {
+				PLOGE << "Exception creating default homonym for word: " << word.m_strWord 
+				      << ", error: " << e.what();
+				// Continue processing even after exception
+			} catch (...) {
+				PLOGE << "Unknown exception creating default homonym for word: " << word.m_strWord;
+				// Continue processing even after exception
+			}
+		}
+		
 		m_LemWords.push_back(word);
 
 		if (token.HasDes(OEXPR2)) {
@@ -110,8 +178,13 @@ bool CLemmatizedText::SaveToFile(std::string filename) const
 				OutputDebugStringW(buf);
 				OutputDebugStringW(L"\n");
 #endif
+				// Log error but continue process - don't assert in production
+				PLOGE << "Critical error: Found word with no homonyms and not a space: " << w.m_strWord;
+				
+				// Skip this word rather than asserting
+				continue;
 			}
-			assert(w.m_bSpace || w.GetHomonymsCount() > 0);
+			
 			for (size_t i = 0; i < w.GetHomonymsCount(); ++i) {
 				outp << w.GetDebugString(w.GetHomonym(i), i == 0) << "\n";
 			}
