@@ -54,6 +54,8 @@ public:
 	static CFont	m_BoldFontForWords;
 	static CFont	m_BoldUnderlineFontForWords;
 	static CFont	m_UnderlineFontForWords;
+	static CFont	m_SubjectFontForWords;      // Шрифт для подлежащего
+	static CFont	m_PredicateFontForWords;    // Шрифт для сказуемого
 	
 
 	void	UpdateFontsFromLogFont();

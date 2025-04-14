@@ -133,21 +133,49 @@ BOOL CVisualWord::PrintWord(CDC* pDC, int iOffset)
     CFont* pOldFont = NULL;    
     COLORREF old_color = pDC->GetTextColor();
 
-    // Улучшенная цветовая схема с бирюзово-зелеными оттенками
-    if (m_bInTermin) {
-        pDC->SetTextColor(RGB(26, 188, 156));  // Бирюзовый (Turquoise)
+    // Получаем информацию о том, является ли слово подлежащим или сказуемым
+    BOOL bSubj = ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bSubj;
+    BOOL bPredk = ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk;
+    BOOL bMainPart = bSubj || bPredk;
+    
+    // Основные цвета для различных типов слов
+    COLORREF termColor = RGB(26, 188, 156);  // Бирюзовый для терминов
+    COLORREF artificialColor = RGB(39, 174, 96);  // Изумрудный для искусственных слов
+    
+    // Цвета для подлежащих и сказуемых
+    COLORREF subjColor = RGB(52, 152, 219);  // Яркий голубой (Peter River)
+    COLORREF predkColor = RGB(155, 89, 182);  // Фиолетовый (Amethyst)
+    
+    // Цвета для эффектов
+    COLORREF shadowColor = RGB(210, 210, 210);
+    COLORREF highlightColor = RGB(250, 250, 210);  // Светло-желтый для подсветки
+    
+    // Определяем цвет текста в зависимости от типа
+    COLORREF textColor;
+    if (bSubj) {
+        textColor = subjColor;
+    } 
+    else if (bPredk) {
+        textColor = predkColor;
+    }
+    else if (m_bInTermin) {
+        textColor = termColor;
     }
     else if (m_bArtificialCreated) {
-        pDC->SetTextColor(RGB(39, 174, 96));   // Изумрудно-зеленый (Emerald)
+        textColor = artificialColor;
+    }
+    else {
+        textColor = RGB(0, 0, 0);  // Обычный черный для остальных слов
     }
 
-    // Антиалиасинг для лучшего качества текста
+    // Устанавливаем цвет текста
+    pDC->SetTextColor(textColor);
+    
+    // Прозрачный фон для лучшего вида
     int oldMode = pDC->SetBkMode(TRANSPARENT);
 
-    BOOL bSubjOrPredk = ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bSubj || 
-                       ((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk;
-
-    if (bSubjOrPredk) {
+    // Выбор шрифта в зависимости от характеристик слова
+    if (bMainPart) {
         pOldFont = pDC->SelectObject(m_bBold || m_bArtificialCreated ? 
             &CVisualSynanView::m_BoldUnderlineFontForWords :
             &CVisualSynanView::m_UnderlineFontForWords);
@@ -156,63 +184,121 @@ BOOL CVisualWord::PrintWord(CDC* pDC, int iOffset)
         pOldFont = pDC->SelectObject(&CVisualSynanView::m_BoldFontForWords);
     }
 
-    // Улучшенное подчеркивание для предикатов с бирюзовым оттенком
-    if (((CVisualHomonym*)m_arrHomonyms.GetAt(m_iActiveHomonym))->m_bPredk) {
-        // Создаем перо с эффектом градиента для подчеркивания
-        CPen pen(PS_SOLID, 2, RGB(22, 160, 133));  // Зеленое море (Green Sea)
-        CPen* pOldPen = pDC->SelectObject(&pen);
+    // Рисуем фон для главных членов предложения
+    if (bMainPart) {
+        // Создаем полупрозрачную заливку для подсветки главных членов
+        CBrush highlightBrush;
+        COLORREF highlightBgColor;
         
-        // Основная линия
-        pDC->MoveTo(m_WordRect.left, m_WordRect.bottom + 2 - iOffset);
-        pDC->LineTo(m_WordRect.right, m_WordRect.bottom + 2 - iOffset);
+        if (bSubj) {
+            // Мягкий голубой фон для подлежащих
+            highlightBgColor = RGB(235, 245, 255);
+        } else {
+            // Мягкий фиолетовый фон для сказуемых
+            highlightBgColor = RGB(245, 235, 255);
+        }
         
-        // Тонкая дополнительная линия для эффекта объема
-        CPen lightPen(PS_SOLID, 1, RGB(26, 188, 156));  // Турецкий (Turquoise)
-        pDC->SelectObject(&lightPen);
-        pDC->MoveTo(m_WordRect.left, m_WordRect.bottom + 1 - iOffset);
-        pDC->LineTo(m_WordRect.right, m_WordRect.bottom + 1 - iOffset);
+        highlightBrush.CreateSolidBrush(highlightBgColor);
+        
+        // Рисуем закругленный прямоугольный фон
+        CRect bgRect = m_WordRect;
+        bgRect.OffsetRect(0, -iOffset);
+        bgRect.InflateRect(4, 2);
+        
+        // Создаем закругленные углы
+        int oldBkMode = pDC->GetBkMode();
+        pDC->SetBkMode(OPAQUE);
+        pDC->SelectStockObject(NULL_PEN);
+        CBrush* pOldBrush = pDC->SelectObject(&highlightBrush);
+        
+        // Рисуем закругленный прямоугольник
+        pDC->RoundRect(bgRect, CPoint(8, 8));
+        
+        // Восстанавливаем объекты
+        pDC->SelectObject(pOldBrush);
+        pDC->SetBkMode(oldBkMode);
+        highlightBrush.DeleteObject();
+    }
+
+    // Специальное подчеркивание и декорации для главных членов предложения
+    if (bMainPart) {
+        // Выбираем цвет и стиль линии в зависимости от типа члена предложения
+        COLORREF lineColor = bSubj ? subjColor : predkColor;
+        
+        // Создаем перо с закругленными концами
+        LOGBRUSH lb;
+        lb.lbStyle = BS_SOLID;
+        lb.lbColor = lineColor;
+        lb.lbHatch = 0;
+        
+        // Толстая линия для выделения
+        CPen mainPen(PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND, 2, &lb);
+        CPen* pOldPen = pDC->SelectObject(&mainPen);
+        
+        // Рисуем основную линию
+        int underlineY = m_WordRect.bottom + 2 - iOffset;
+        pDC->MoveTo(m_WordRect.left - 2, underlineY);
+        pDC->LineTo(m_WordRect.right + 2, underlineY);
+        
+        // Добавляем декоративную линию
+        if (bSubj) {
+            // Двойная линия для подлежащего
+            pDC->MoveTo(m_WordRect.left, underlineY + 3);
+            pDC->LineTo(m_WordRect.right, underlineY + 3);
+        } else {
+            // Волнистая линия для сказуемого (имитация волны через точки)
+            int waveAmp = 2;
+            int wavePeriod = 6;
+            for (int x = m_WordRect.left; x < m_WordRect.right; x += 2) {
+                int phase = ((x - m_WordRect.left) % wavePeriod) * 180 / wavePeriod;
+                int yOffset = static_cast<int>(waveAmp * sin(phase * 3.14159 / 180));
+                pDC->SetPixel(x, underlineY + 3 + yOffset, lineColor);
+                pDC->SetPixel(x + 1, underlineY + 3 + yOffset, lineColor);
+            }
+        }
         
         pDC->SelectObject(pOldPen);
     }
 
-    // Плавные тени и эффекты для текста в зависимости от его типа
-    if (m_bBold) {
-        // Для жирного текста добавляем более выраженную тень
-        COLORREF shadowColor = RGB(210, 210, 210);
-        COLORREF textColor;
-        
-        // Определяем цвет текста в зависимости от его типа
-        if (m_bInTermin) {
-            textColor = RGB(26, 188, 156); // Турецкий
-        } 
-        else if (m_bArtificialCreated) {
-            textColor = RGB(39, 174, 96); // Изумрудный 
-        } 
-        else {
-            textColor = RGB(0, 0, 0); // Обычный черный текст
+    // Рисуем сам текст с эффектом тени/свечения для главных членов предложения
+    if (bMainPart || m_bBold) {
+        // Для главных членов - светящаяся тень
+        if (bMainPart) {
+            // Более яркая тень для главных членов
+            COLORREF glowColor = bSubj ? 
+                RGB(200, 230, 250) : // Голубоватая для подлежащего
+                RGB(230, 200, 250);  // Фиолетовая для сказуемого
+                
+            // Эффект свечения через многослойную тень
+            for (int i = 1; i <= 2; i++) {
+                pDC->SetTextColor(glowColor);
+                pDC->TextOut(m_WordRect.left - i, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
+                pDC->TextOut(m_WordRect.left + i, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
+                pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset - i, m_strWord, m_strWord.GetLength());
+                pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset + i, m_strWord, m_strWord.GetLength());
+            }
+        } else {
+            // Обычная тень для жирного текста
+            pDC->SetTextColor(shadowColor);
+            pDC->TextOut(m_WordRect.left + 1, m_WordRect.top - iOffset + 1, m_strWord, m_strWord.GetLength());
         }
         
-        // Рисуем тень
-        pDC->SetTextColor(shadowColor);
-        pDC->TextOut(m_WordRect.left + 1, m_WordRect.top - iOffset + 1, m_strWord, m_strWord.GetLength());
-        
-        // Рисуем основной текст
+        // Основной текст
         pDC->SetTextColor(textColor);
         pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
-    } 
-    else {
+    } else {
         // Для обычного текста - просто рисуем
         pDC->TextOut(m_WordRect.left, m_WordRect.top - iOffset, m_strWord, m_strWord.GetLength());
     }
 
-    // Восстановление состояния DC
+    // Восстанавливаем контекст устройства
     if (pOldFont) {
         pDC->SelectObject(pOldFont);
     }
     pDC->SetTextColor(old_color);
     pDC->SetBkMode(oldMode);
 
-    return TRUE;    
+    return TRUE;
 }
 
 int CVisualWord::CalculateCoordinates(CDC* pDC,int iX, int iY)

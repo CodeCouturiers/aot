@@ -16,6 +16,8 @@ CFont	CVisualSynanView::m_FontForGroupNames;
 CFont	CVisualSynanView::m_BoldFontForWords;
 CFont	CVisualSynanView::m_BoldUnderlineFontForWords;
 CFont	CVisualSynanView::m_UnderlineFontForWords;
+CFont	CVisualSynanView::m_SubjectFontForWords;
+CFont	CVisualSynanView::m_PredicateFontForWords;
 
 
 #ifdef _DEBUG
@@ -430,6 +432,8 @@ void CVisualSynanView::UpdateFontsFromLogFont()
 	if (m_BoldFontForWords.m_hObject) m_BoldFontForWords.DeleteObject();
 	if (m_BoldUnderlineFontForWords.m_hObject) m_BoldUnderlineFontForWords.DeleteObject();
 	if (m_UnderlineFontForWords.m_hObject) m_UnderlineFontForWords.DeleteObject();
+	if (m_SubjectFontForWords.m_hObject) m_SubjectFontForWords.DeleteObject();
+	if (m_PredicateFontForWords.m_hObject) m_PredicateFontForWords.DeleteObject();
 
 	// Основной шрифт с улучшенным сглаживанием
 	LOGFONT logFont = m_LogFontForWords;
@@ -480,6 +484,30 @@ void CVisualSynanView::UpdateFontsFromLogFont()
 	fontCreated = m_UnderlineFontForWords.CreateFontIndirect(&logFont);
 	if (!fontCreated) {
 		OutputDebugString(_T("[VisualSynan] Error: Failed to create underline font\n"));
+	}
+	
+	// Специальный шрифт для подлежащего - полужирный с подчеркиванием и увеличенный
+	logFont = m_LogFontForWords;
+	logFont.lfWeight = FW_BOLD;
+	logFont.lfUnderline = TRUE;
+	logFont.lfHeight = m_LogFontForWords.lfHeight + 2; // Немного крупнее
+	logFont.lfQuality = CLEARTYPE_QUALITY;
+	
+	fontCreated = m_SubjectFontForWords.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create subject font\n"));
+	}
+	
+	// Специальный шрифт для сказуемого - с подчеркиванием и курсивом
+	logFont = m_LogFontForWords;
+	logFont.lfWeight = FW_BOLD;
+	logFont.lfUnderline = TRUE;
+	logFont.lfItalic = TRUE;  // Курсив для сказуемых
+	logFont.lfQuality = CLEARTYPE_QUALITY;
+	
+	fontCreated = m_PredicateFontForWords.CreateFontIndirect(&logFont);
+	if (!fontCreated) {
+		OutputDebugString(_T("[VisualSynan] Error: Failed to create predicate font\n"));
 	}
 }
 
