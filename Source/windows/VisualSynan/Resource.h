@@ -20,6 +20,7 @@
 #define IDC_RADIO2                      1001
 #define IDC_RADIO3                      1002
 #define IDC_ANIMATE_WAIT                1012
+#define IDC_SYSINFO                     1013
 #define ID_BUILD_SYNAN                  32771
 #define ID_FONTS                        32772
 #define ID_OPEN_SYNFILE                 32774

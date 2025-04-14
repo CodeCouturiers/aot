@@ -487,16 +487,19 @@ public:
 // Dialog Data
 	//{{AFX_DATA(CAboutDlg)
 	enum { IDD = IDD_ABOUTBOX };
+	CString m_strSystemInfo;
 	//}}AFX_DATA
 
 	// ClassWizard generated virtual function overrides
 	//{{AFX_VIRTUAL(CAboutDlg)
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+	virtual BOOL OnInitDialog();
 	//}}AFX_VIRTUAL
 
 // Implementation
 protected:
+	void InitSystemInfo();
 	//{{AFX_MSG(CAboutDlg)
 		// No message handlers
 	//}}AFX_MSG
@@ -506,14 +509,51 @@ protected:
 CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
 {
 	//{{AFX_DATA_INIT(CAboutDlg)
+	m_strSystemInfo = _T("");
 	//}}AFX_DATA_INIT
+	InitSystemInfo();
 }
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(CAboutDlg)
+	DDX_Text(pDX, IDC_SYSINFO, m_strSystemInfo);
 	//}}AFX_DATA_MAP
+}
+
+BOOL CAboutDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+	
+	// Center the dialog
+	CenterWindow();
+	
+	return TRUE;
+}
+
+void CAboutDlg::InitSystemInfo()
+{
+	// Get system info
+	SYSTEM_INFO sysInfo;
+	::GetSystemInfo(&sysInfo);
+	
+	// Get Windows version
+	OSVERSIONINFO osvi;
+	ZeroMemory(&osvi, sizeof(OSVERSIONINFO));
+	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+	
+#pragma warning(disable:4996) // Suppress deprecated function warning
+	GetVersionEx(&osvi);
+#pragma warning(default:4996)
+	
+	// Format system information string
+	m_strSystemInfo.Format(_T("OS: Windows %d.%d (Build %d), Processors: %d, Architecture: %s"),
+						   osvi.dwMajorVersion,
+						   osvi.dwMinorVersion,
+						   osvi.dwBuildNumber,
+						   sysInfo.dwNumberOfProcessors,
+						   (sysInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64) ? _T("x64") : _T("x86"));
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)

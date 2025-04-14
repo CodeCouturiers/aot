@@ -7,6 +7,8 @@
 #include "VisualSynanDoc.h"
 #include "ChildFrm.h"
 #include "../../synan/SynanLib/SentencesCollection.h"
+#include <fstream>
+#include <string>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -205,70 +207,64 @@ BOOL CVisualSynanDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		CString strPath = lpszPathName;
 		
 		// Проверяем, является ли файл SYN-файлом
-		CString strExt = strPath.Right(4);
+		CString strExt = CString(strPath).Right(4);
 		strExt.MakeLower();
 		
 		if (strExt == _T(".syn")) {
-			// Специальная обработка для .SYN файлов
-			CStdioFile file;
-			if (!file.Open(lpszPathName, CFile::modeRead | CFile::typeText)) {
+			// Считываем файл как обычный текст для упрощения
+			std::ifstream file(lpszPathName);
+			if (!file.is_open()) {
 				AfxMessageBox(_T("Не удалось открыть файл"), MB_ICONERROR);
 				return FALSE;
 			}
 			
-			// Читаем содержимое файла
-			CString fileContent, line;
-			bool dataSection = false;
-			bool foundData = false;
-			
-			while (file.ReadString(line)) {
-				// Проверяем маркеры начала и конца данных
-				if (line.Find(_T("# SYNAN_DATA_START")) != -1) {
-					dataSection = true;
-					continue;
-				}
-				else if (line.Find(_T("# SYNAN_DATA_END")) != -1) {
-					dataSection = false;
-					continue;
-				}
-				
-				// Извлекаем данные предложений
-				if (dataSection && line.Find(_T("SENT: ")) == 0) {
-					// Убираем префикс "SENT: "
-					line = line.Mid(6);
-					fileContent += line + _T("\n");
-					foundData = true;
-				}
+			std::string content, line;
+			while (std::getline(file, line)) {
+				content += line + "\n";
 			}
-			file.Close();
+			file.close();
 			
-			// Если нашли текст для анализа, отправляем его на обработку
-			if (foundData) {
-				return GetSentencesFromSynAn(*this, fileContent, FALSE);
-			} 
-			else {
-				// Если не нашли маркированные данные, пробуем обработать весь файл как текст
-				if (!file.Open(lpszPathName, CFile::modeRead | CFile::typeText)) {
-					return FALSE;
-				}
+			// Преобразуем содержимое в CString
+			CString fileContent(content.c_str());
+			
+			// Ищем маркер начала данных
+			int startPos = fileContent.Find(_T("# SYNAN_DATA_START"));
+			int endPos = fileContent.Find(_T("# SYNAN_DATA_END"));
+			
+			// Извлекаем только строки с SENT:
+			CString extractedText;
+			
+			if (startPos != -1 && endPos != -1 && endPos > startPos) {
+				// Получаем данные между маркерами
+				CString dataSection = fileContent.Mid(startPos, endPos - startPos);
 				
-				fileContent.Empty();
-				while (file.ReadString(line)) {
-					// Пропускаем строки комментариев
-					if (!line.IsEmpty() && line[0] != '#') {
-						fileContent += line + _T("\n");
+				// Ищем строки с префиксом SENT:
+				int lineStart = 0;
+				int lineEnd = 0;
+				
+				while ((lineStart = dataSection.Find(_T("SENT:"), lineStart)) != -1) {
+					// Находим конец строки
+					lineEnd = dataSection.Find(_T("\n"), lineStart);
+					if (lineEnd == -1) {
+						lineEnd = dataSection.GetLength();
 					}
+					
+					// Извлекаем строку без префикса
+					CString sentLine = dataSection.Mid(lineStart + 5, lineEnd - lineStart - 5).Trim();
+					extractedText += sentLine + _T("\n");
+					
+					// Переходим к следующей строке
+					lineStart = lineEnd + 1;
 				}
-				file.Close();
 				
-				if (!fileContent.IsEmpty()) {
-					return GetSentencesFromSynAn(*this, fileContent, FALSE);
-				}
-				else {
-					AfxMessageBox(_T("Файл не содержит данных для анализа"), MB_ICONINFORMATION);
-					return FALSE;
+				if (!extractedText.IsEmpty()) {
+					// Анализируем извлеченный текст
+					return GetSentencesFromSynAn(*this, extractedText, FALSE);
 				}
 			}
+			
+			// Если не нашли форматированные данные, пробуем прямое чтение файла
+			return GetSentencesFromSynAn(*this, strPath, TRUE);
 		} 
 		else {
 			// Стандартная обработка для других файлов
